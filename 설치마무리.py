@@ -15,6 +15,7 @@
   브라우저를 못 열면 저절로 터미널 판으로 되돌아간다.
 """
 import http.server
+import io
 import json
 import os
 import re
@@ -207,6 +208,20 @@ def 돌아가나(자리, 이름):
 
 
 def 찾기(이름):
+    """프로그램을 찾는다. 설치기가 적어 둔 자리를 먼저 본다 — PATH 를 못 믿는다."""
+    if 이름 == "claude":
+        적힌것 = os.environ.get("VOLCANO_CLAUDE") or ""
+        if not 적힌것:
+            try:
+                for 줄 in io.open(집 / "env", encoding="utf-8"):
+                    if 줄.startswith("VOLCANO_CLAUDE="):
+                        적힌것 = 줄.split("=", 1)[1].strip(); break
+            except Exception:
+                pass
+        if 적힌것 and os.path.exists(적힌것):
+            return 적힌것
+    # ── 아래는 예전 길 ──
+
     """PATH·볼케이노 폴더에서 찾되 **실제로 돌아가는 것**만 돌려준다. 없으면 None."""
     if 이름 in _찾은것:
         return _찾은것[이름]

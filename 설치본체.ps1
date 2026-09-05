@@ -339,6 +339,7 @@ Step 6 "실행기 내려받기"
 FetchRunner $runnerUrl $runnerSha
 
 # ── 7. Claude Code ──────────────────────────────────────────
+$script:claudePath = $null
 Step 7 "Claude Code 준비"
 if (Have 'claude') { Skip 'claude' }
 else {
@@ -354,12 +355,28 @@ else {
     (Join-Path $env:APPDATA 'npm\claude.cmd')
   )
   $ccFound = $ccPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
-  if ($ccFound -or (Have 'claude')) { Ok 'claude' }
+  if ($ccFound) {
+    # ★ 찾은 자리를 적어 둔다. 안 적으면 나중에 로그인할 때 또 못 찾는다
+    #   (실측 2026-09-05 — 「'claude.cmd' is not recognized」 로 로그인이 막혔다).
+    $script:claudePath = $ccFound
+    Ok 'claude'
+  } elseif (Have 'claude') { Ok 'claude' }
   else { Warn "Claude Code 를 설치하지 못했습니다" "설치는 계속합니다. 나중에 PowerShell 에 이렇게 치세요: irm https://claude.ai/install.ps1 | iex" }
 }
 
 # ── 8. 설정 적기 ────────────────────────────────────────────
 Step 8 "설정 적기"
+# 클로드코드 자리를 적어 둔다 — 로그인 창이 이것을 쓴다.
+if (-not $script:claudePath) {
+  # 자리마다 밑둥이 비어 있을 수 있다(맥에는 APPDATA 가 없다). 비면 건너뛴다.
+  $ccRoots = @()
+  if ($env:USERPROFILE) {
+    $ccRoots += (Join-Path $env:USERPROFILE '.local\bin\claude.cmd')
+    $ccRoots += (Join-Path $env:USERPROFILE '.local\bin\claude.exe')
+  }
+  if ($env:APPDATA) { $ccRoots += (Join-Path $env:APPDATA 'npm\claude.cmd') }
+  foreach ($c in $ccRoots) { if (Test-Path $c) { $script:claudePath = $c; break } }
+}
 $envFile = Join-Path $vHome 'env'
 if (-not (Test-Path $envFile)) { New-Item -ItemType File -Path $envFile | Out-Null }
 $envText = Get-Content $envFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
@@ -372,6 +389,7 @@ AddEnvLine 'VOLCANO_HOME'   "VOLCANO_HOME=$vHome"
 AddEnvLine 'VOLCANO_PY'     "VOLCANO_PY=$PY"
 AddEnvLine 'VOLCANO_RUNNER' "VOLCANO_RUNNER=$RUNNER"
 AddEnvLine 'VOLCANO_JOBS'   "VOLCANO_JOBS=$JOBS"
+if ($script:claudePath) { AddEnvLine 'VOLCANO_CLAUDE' "VOLCANO_CLAUDE=$($script:claudePath)" }
 
 foreach ($pair in @(@('VOLCANO_HOME',$vHome), @('VOLCANO_PY',$PY), @('VOLCANO_RUNNER',$RUNNER), @('VOLCANO_JOBS',$JOBS))) {
   if (-not [Environment]::GetEnvironmentVariable($pair[0],'User')) {
