@@ -91,6 +91,20 @@ function FindRunnable($name) {
 }
 function Have($name) { $null -ne (FindRunnable $name) }
 
+# ★ uv 는 진행 상황을 stderr 로 알린다. PowerShell 은 그것을 **오류로 착각**해
+#   NativeCommandError 를 내고, 설치가 멀쩡히 되는 중에 죽는다(실측 2026-09-05 —
+#   「Downloading cpython… (21.0MiB)」 가 오류가 됐다). 그래서 이 자리에서만 끈다.
+function RunUv($volcanoArgs) {
+  $before = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & (UvCmd) @volcanoArgs 2>&1 | ForEach-Object { Log ([string]$_) }
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    $ErrorActionPreference = $before
+  }
+}
+
 # ★ 방금 깐 프로그램은 이 창의 PATH 에 아직 없다. 우리 폴더를 직접 봐야 한다.
 #   (실측 2026-09-05 — uv 가 "everything's installed!" 로 깔렸는데도 못 찾아 실패했다.)
 function OurExe($name) {
@@ -257,11 +271,11 @@ else {
   }
   Ok 'uv'
 }
-& (UvCmd) python install 3.12 *>> $LOG
-if ($LASTEXITCODE -ne 0) { Fail "파이썬 3.12 를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
+$uvOk = RunUv @('python','install','3.12')
+if (-not $uvOk) { Fail "파이썬 3.12 를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
 if ((Test-Path $PY) -or (Test-Path $PYalt)) { Skip "파이썬 자리 $VENV" }
 else {
-  & (UvCmd) venv --seed --python 3.12 $VENV *>> $LOG
+  RunUv @('venv','--seed','--python','3.12',$VENV) | Out-Null
   if (Test-Path $PYalt) { $PY = $PYalt }
   if (-not (Test-Path $PY)) { Fail "파이썬 자리를 만들지 못했습니다" "$VENV 폴더 이름을 바꾼 뒤 다시 돌려 주세요" }
   Ok "파이썬 자리 $VENV"
@@ -269,11 +283,11 @@ else {
 
 # ── 3. 파이썬 부품 ──────────────────────────────────────────
 Step 3 "파이썬 부품 넣기 (몇 분 걸립니다)"
-& (UvCmd) pip install --python $PY --quiet pillow numpy opencv-python fonttools brotli *>> $LOG
-if ($LASTEXITCODE -ne 0) { Fail "파이썬 부품을 넣지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
+$pipOk = RunUv @('pip','install','--python',$PY,'--quiet','pillow','numpy','opencv-python','fonttools','brotli')
+if (-not $pipOk) { Fail "파이썬 부품을 넣지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
 Ok "그림·글꼴·영상 부품"
 Say "   ·  받아쓰기(whisper) 를 넣는 중입니다 — 덩치가 커서 오래 걸립니다"
-& (UvCmd) pip install --python $PY --quiet openai-whisper *>> $LOG
+RunUv @('pip','install','--python',$PY,'--quiet','openai-whisper') | Out-Null
 if ($LASTEXITCODE -eq 0) { Ok "받아쓰기(whisper)" }
 else { Warn "받아쓰기(whisper) 를 넣지 못했습니다" "설치는 계속합니다. 마무리 단계에서 받아쓰기 열쇠를 넣으면 대신 쓸 수 있습니다" }
 
