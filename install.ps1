@@ -2,19 +2,24 @@
 #
 #   irm https://volcanoai.io/setup/install.ps1 | iex
 #
-# ★ 이 파일에는 UTF-8 BOM 을 붙이지 않는다.
-#   다른 .ps1 과 반대다. 이것만은 파일로 읽히지 않고 irm 이 받아 iex 로 바로 돈다.
-#   BOM 을 붙이면 그 글자가 첫 줄 앞에 그대로 남아
-#   「'﻿#' 은(는) 내부 또는 외부 명령이 아닙니다」 라는 빨간 줄이 맨 위에 뜬다 (실측).
-#   파일로 읽히는 설치본체.ps1·setup.ps1 은 반대로 BOM 이 꼭 있어야 한다.
+# ★ 이 파일은 irm | iex 로 도므로 **화면에 나가는 글은 영문**이다.
+#   한글 안내는 파일로 읽히는 설치본체.ps1 과 볼케이노 앱 창이 한다.
+#   뿌리: 윈도우 PowerShell 5.1 의 Invoke-RestMethod 는 응답에 charset 이 없으면 본문을
+#   UTF-8 로 안 읽는다. 그래서 문자열 속 한글이 통째로 깨져 나온다
+#   (실측 2026-09-05 · 사장님 화면 — 코드는 멀쩡히 도는데 안내 글자만 âââ… 로 나왔다).
+#   BOM 으로는 못 고친다 — BOM 을 붙이면 그 글자가 첫 줄 앞에 그대로 남아
+#   「'#' 은(는) 내부 또는 외부 명령이 아닙니다」 라는 빨간 줄이 맨 위에 뜬다(실측).
+#   그래서 이 파일만 「BOM 없음 + 화면 출력 영문」 이다.
+#   주석은 화면에 안 나가므로 한글 그대로 둔다.
+#   파일로 읽히는 설치본체.ps1·setup.ps1 은 반대로 BOM 이 꼭 있어야 하고 한글 그대로다.
+#   검사: 앱/릴리스.sh → 이름점검.py 가 이 파일의 출력 문자열에 비ASCII 가 있으면 멈춘다.
 #
 # 여기서 하는 일은 「앱을 놓고 여는 것」 뿐이다.
 # 파이썬·ffmpeg·받아쓰기 같은 나머지 설치는 앱이 제 창 안에서 이어서 한다.
 # 관리자 권한을 쓰지 않는다. 전부 사용자 폴더에만 넣는다.
 
-# ★ 이름은 ASCII — 변수·함수 이름에 한글을 쓰지 않는다. 한국어 윈도우에서 파서가 죽는다(실측 2026-09-05).
-#   irm | iex 로 받으면 PowerShell 5.1 이 본문을 UTF-8 로 안 읽어 $한글 이름이 깨진 바이트가 되고
-#   ParserError 가 화면을 덮는다. 화면에 나가는 **문자열**은 한글 그대로 둔다(깨져도 죽지는 않는다).
+# ★ 이름도 ASCII — 변수·함수 이름에 한글을 쓰지 않는다. 한국어 윈도우에서 파서가 죽는다(실측 2026-09-05).
+#   irm | iex 로 받으면 $한글 이름이 깨진 바이트가 되어 ParserError 가 화면을 덮는다.
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
@@ -38,64 +43,74 @@ $pkgName   = 'volcano-windows.zip'
 function Say($msg) { Write-Host $msg }
 function Fail($msg, $todo) {
   Write-Host ""
-  Write-Host ("❌ " + $msg) -ForegroundColor Red
-  Write-Host ("   " + $todo)
-  Read-Host "  엔터를 누르면 창이 닫힙니다"
+  Write-Host ("[X] " + $msg) -ForegroundColor Red
+  Write-Host ("    " + $todo)
+  Read-Host "  Press Enter to close this window"
   exit 1
 }
 
 Say ""
-Say "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-Say "  볼케이노 설치"
-Say "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-Say ("  설치 자리 : " + (Join-Path $destDir 'volcano.exe'))
-if ($isTestDest) { Say "  (시험 자리입니다 — 진짜 설치 자리는 건드리지 않습니다)" }
+Say "===================================="
+Say "  Volcano installer"
+Say "===================================="
+Say ("  Install to : " + (Join-Path $destDir 'volcano.exe'))
+if ($isTestDest) { Say "  (Test location - your real install is not touched.)" }
 
 $work = Join-Path $env:TEMP ("volcano_" + [guid]::NewGuid().ToString('N').Substring(0,8))
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 
-Say "[1/5] 내려받는 중… (40MB 정도, 10초~1분)"
+Say "[1/5] Downloading... (about 40MB, 10 sec - 1 min)"
 $dlFile = Join-Path $work $pkgName
 try {
   Invoke-WebRequest -Uri ($baseUrl + '/' + $pkgName) -OutFile $dlFile -UseBasicParsing
 } catch {
-  Fail "내려받지 못했습니다." "인터넷 연결을 확인하고 같은 명령을 한 번 더 붙여넣어 주세요. ($baseUrl/$pkgName)"
+  Fail "Could not download." "Check your internet connection and paste the same command once more. ($baseUrl/$pkgName)"
 }
 if (-not (Test-Path $dlFile) -or (Get-Item $dlFile).Length -lt 1000) {
-  Fail "받은 파일이 비어 있습니다." "잠시 뒤 같은 명령을 다시 해 주세요."
+  Fail "The downloaded file is empty." "Please run the same command again in a moment."
 }
 
-Say "[2/5] 압축을 푸는 중…"
+Say "[2/5] Unpacking..."
 $unzipDir = Join-Path $work 'x'
 try { Expand-Archive -Path $dlFile -DestinationPath $unzipDir -Force }
-catch { Fail "압축을 풀지 못했습니다." "받다가 끊겼을 수 있습니다. 같은 명령을 한 번 더 해 주세요." }
+catch { Fail "Could not unpack the file." "The download may have been cut off. Please run the same command once more." }
 
 $exe = Get-ChildItem -Path $unzipDir -Recurse -Filter 'volcano.exe' | Select-Object -First 1
-if (-not $exe) { Fail "압축 안에서 volcano.exe 를 찾지 못했습니다." "만든 사람에게 알려 주세요." }
+if (-not $exe) { Fail "volcano.exe was not found inside the package." "Please tell the developer." }
 
 # 이미 있으면 지우지 말고 옮겨 둔다
 if (Test-Path $destDir) {
+  # 도는 볼케이노가 있으면 파일을 못 옮긴다. 먼저 곱게 끈다.
+  # (실측 2026-09-05 — 「이미 있는 앱을 옮기지 못했습니다」로 멈췄다.)
+  try {
+    Get-Process -Name 'volcano' -ErrorAction SilentlyContinue | ForEach-Object {
+      $_.CloseMainWindow() | Out-Null
+    }
+    Start-Sleep -Seconds 2
+    Get-Process -Name 'volcano' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+  } catch { }
   $moveTo = Join-Path $keepRoot ('.volcano_prev\' + (Get-Date -Format 'yyyyMMdd_HHmm'))
   New-Item -ItemType Directory -Force -Path $moveTo | Out-Null
   try { Move-Item -Force $destDir (Join-Path $moveTo 'Volcano') }
-  catch { Fail "이미 있는 앱을 옮기지 못했습니다." "볼케이노가 실행 중이면 먼저 끄고 다시 해 주세요." }
-  Say "[3/5] 이미 있던 것은 지우지 않고 옮겨 두었습니다 → $moveTo"
+  catch { Fail "Could not move the app that is already installed. (Cannot replace running app)" "Close all Volcano windows and try again." }
+  Say "[3/5] The old version was kept, not deleted -> $moveTo"
 } else {
-  Say "[3/5] 처음 설치입니다."
+  Say "[3/5] This is a first install."
 }
 
 New-Item -ItemType Directory -Force -Path $destDir | Out-Null
 Copy-Item -Path (Join-Path $exe.DirectoryName '*') -Destination $destDir -Recurse -Force
 $appExe = Join-Path $destDir 'volcano.exe'
-Say "[4/5] 넣었습니다 → $appExe"
+Say "[4/5] Installed -> $appExe"
 
 # 인터넷에서 받았다는 표를 떼어 둔다 (SmartScreen 경고를 줄인다)
 try { Unblock-File -Path $appExe } catch {}
 
-Say "[5/5] 실행합니다…"
+Say "[5/5] Starting..."
 if ($env:VOLCANO_NO_RUN -eq '1') {
   Say ""
-  Say "✅ 놓기만 했습니다 (VOLCANO_NO_RUN=1) → $appExe"
+  Say "[OK] Files are in place only (VOLCANO_NO_RUN=1) -> $appExe"
   try { Remove-Item -Recurse -Force $work } catch {}
   exit 0
 }
@@ -103,15 +118,16 @@ try {
   # 놓은 그 자리의 것을 연다 (지금 창의 환경변수를 그대로 물려받는다)
   Start-Process -FilePath $appExe -WorkingDirectory $destDir
   Say ""
-  Say "✅ 여기까지 끝났습니다. 잠시 뒤 볼케이노 창이 열립니다."
-  Say "   나머지 설치는 그 창 안에서 이어집니다 — 단추만 누르시면 됩니다."
+  Say "[OK] Done here. The Volcano window opens in a moment."
+  Say "     The rest of the setup continues in that window - just click the buttons."
 } catch {
   Say ""
-  Say "✅ 앱은 넣었습니다. 다만 자동으로 열리지 않았습니다."
-  Say "   이 파일을 두 번 눌러 주세요: $appExe"
+  Say "[OK] The app is installed, but it did not open by itself."
+  Say "     Please double-click this file: $appExe"
 }
 
 try { Remove-Item -Recurse -Force $work } catch {}
 Say ""
-Say "   다음부터는 바탕화면의 「볼케이노」를 두 번 누르면 됩니다."
+Say "   Next time, just double-click the Volcano icon on your desktop."
+Say "   Note: this installer speaks English, but the Volcano window will be in Korean."
 Say ""
