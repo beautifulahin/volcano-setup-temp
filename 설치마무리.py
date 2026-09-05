@@ -752,7 +752,8 @@ def 하기():
         for 하나 in 남길것:
             print(f"   · {하나}")
         print()
-    print("  다음부터는 바탕화면의 「볼케이노」를 두 번 누르면 시작됩니다.")
+    print("  다음부터는 VS Code 를 열고 왼쪽 Claude 아이콘(또는 Ctrl+Esc)을 누르세요.")
+    print("  바탕화면의 「볼케이노」는 VS Code 없이 쓰실 때의 예비 길입니다.")
     print("  VS Code 를 쓰시면 거기서 Claude Code 를 열어도 볼케이노가 붙어 있습니다.")
     print("  바탕화면 아이콘은 VS Code 없이 바로 쓰실 때 쓰세요.")
     print()
@@ -779,14 +780,20 @@ def 하기():
                     코드 = 줄.split("=", 1)[1].strip(); break
         except Exception:
             pass
+    # ★ VS Code 가 본선이다(사용자 지시 2026-09-05: 「사람들이 VS Code 를 더 많이 쓴다」).
+    #   묻지 말고 연다 — 검은 창은 예비 길이다.
     if 코드 and (os.path.exists(코드) or 코드 == "code"):
-        if 예아니오("  VS Code 로 작업 폴더를 열어 둘까요?", True):
-            try:
-                subprocess.Popen([코드, str(작업장())],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                print("  ✓ VS Code 를 열었습니다. 거기서 Claude Code 를 열어도 볼케이노가 붙어 있습니다.")
-            except Exception:
-                print("  ! VS Code 를 열지 못했습니다. 직접 열어 작업 폴더를 여시면 됩니다.")
+        print("  · VS Code 로 볼케이노를 엽니다…")
+        try:
+            subprocess.Popen([코드, str(작업장())],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("  ✓ VS Code 를 열었습니다.")
+            print("     왼쪽 Claude 아이콘(또는 Ctrl+Esc)을 누르면 볼케이노가 붙은 채로 열립니다.")
+            if not 승인됨:
+                print("     거기서  /mcp  → volcano → Authenticate 로 메일을 적으세요.")
+        except Exception:
+            print("  ! VS Code 를 열지 못했습니다. 직접 여신 뒤 이 폴더를 열어 주세요:")
+            print(f"     {작업장()}")
 
     print("  이제 볼케이노를 엽니다.")
     if not 승인됨:
@@ -1213,7 +1220,7 @@ def 창_승인(이름=None):
 </div>
 
 <div class="판" id="끝판">
-  <p class="설명" id="끝말">다음부터는 바탕화면의 「볼케이노」를 두 번 누르면 시작됩니다.</p>
+  <p class="설명" id="끝말">VS Code 를 열고 왼쪽 Claude 아이콘(또는 Ctrl+Esc)을 누르세요. 바탕화면의 「볼케이노」는 예비 길입니다.</p>
   <button class="단추" id="단추끝">다 됐습니다 — 닫기</button>
 </div>
 
@@ -1444,7 +1451,7 @@ async function 창띄우기(길, 단추){
   document.body.innerHTML =
     '<div class="가운데"><h1>다 됐습니다</h1>' +
     '<p class="부제">이 창은 닫으셔도 됩니다. ' +
-    '다음부터는 바탕화면의 「볼케이노」를 두 번 누르면 시작됩니다.</p></div>';
+    'VS Code 를 열고 왼쪽 Claude 아이콘(또는 Ctrl+Esc)을 누르세요. 바탕화면의 「볼케이노」는 예비 길입니다.</p></div>';
 });
 
 // 앱 안(속창)에서 열렸으면 내 키를 바깥에 알려 준다.

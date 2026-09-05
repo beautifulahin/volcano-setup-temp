@@ -432,6 +432,7 @@ try {
   New-Item -ItemType Directory -Force -Path $vscDir | Out-Null
   $claudeDir = Join-Path $env:USERPROFILE '.local\bin'
   $settings = @{
+    'security.workspace.trust.enabled' = $false
     'terminal.integrated.env.windows' = @{
       'PATH'           = ($claudeDir + ';' + $BIN + ';${env:PATH}')
       'VOLCANO_HOME'   = $vHome
@@ -497,6 +498,36 @@ if ($added.Count -gt 0) {
   [Environment]::SetEnvironmentVariable('PATH', $userPath, 'User')
   foreach ($one in $added) { Ok "PATH 에 $one 넣음" }
 } else { Write-Host "   ·  PATH — 이미 들어 있습니다" }
+
+# ★ PATH 는 **이미 열려 있는 창**에는 안 들어간다. VS Code 를 껐다 켜야 하는데
+#   사람이 그걸 모르면 「안 된다」로 끝난다(실측 2026-09-05 — 새 창마다 실패했다).
+#   그래서 PowerShell 프로필에 한 줄 심어 **어느 창을 열든** 저절로 잡히게 한다.
+try {
+  $marker = '# volcano-path'
+  $lineToAdd = ('$env:PATH = "' + $claudeBin + ';' + $BIN + ';$env:PATH"  ' + $marker)
+  # 윈도우 PowerShell 5.1 과 PowerShell 7 은 프로필 자리가 다르다 — 둘 다 심는다.
+  # ★ MyDocuments 를 쓰면 안 된다 — 시험 중에 **진짜 사용자 Documents** 를 가리켜
+  #   그 자리에 파일을 남겼다(실측 2026-09-05). 반드시 USERPROFILE 밑으로 잡는다.
+  $docs = Join-Path $env:USERPROFILE 'Documents'
+  $profiles = @(
+    (Join-Path $docs 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path $docs 'PowerShell\Microsoft.PowerShell_profile.ps1')
+  )
+  foreach ($pf in $profiles) {
+    $dir = Split-Path -Parent $pf
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    $cur = ''
+    if (Test-Path $pf) {
+      try { (Get-Item $pf -Force).Attributes = 'Normal' } catch {}
+      $cur = Get-Content $pf -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($null -eq $cur) { $cur = '' }
+    }
+    if ($cur -notlike ('*' + $marker + '*')) {
+      Add-Content -Path $pf -Value $lineToAdd -Encoding UTF8
+    }
+  }
+  Ok 'PowerShell 프로필 (새 창에서 저절로 잡힘)'
+} catch { Log ("프로필 심기 실패: " + $_) }
 
 try { FetchPkg '점검.py' (Join-Path $setupDir '점검.py') } catch { Warn "점검.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
 try { FetchPkg '설치마무리.py' (Join-Path $setupDir '설치마무리.py') } catch { Warn "설치마무리.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
@@ -600,7 +631,8 @@ Write-Host ""
 Write-Host "────────────────────────────────────"
 Write-Host " 여기까지 끝났습니다."
 Write-Host " 1) 못 넣은 것이 있으면 이렇게 이어서 하면 됩니다: $finishBat"
-Write-Host " 2) 다음부터는 바탕화면의 「볼케이노」를 두 번 누르면 됩니다."
+Write-Host " 2) 다음부터는 VS Code 를 열고 왼쪽 Claude 아이콘(또는 Ctrl+Esc)을 누르세요."
+Write-Host "    바탕화면의 「볼케이노」는 VS Code 없이 쓰실 때의 예비 길입니다."
 Write-Host " 기록: $LOG"
 Write-Host "────────────────────────────────────"
 Log "=== 설치 끝 ==="
