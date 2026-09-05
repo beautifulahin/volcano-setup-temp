@@ -35,7 +35,6 @@ def 볼케이노집() -> Path:
 설치기 = 집 / "설치기"
 열쇠집 = 집 / "keys"
 파이썬 = 집 / ("venv/Scripts/python.exe" if 윈도우 else "venv/bin/python3")
-실행기 = Path(os.environ.get("VOLCANO_RUNNER") or (집 / "runner"))
 
 
 def 설정읽기() -> dict:
@@ -128,23 +127,21 @@ def 찾기(이름):
 
 부품 = ["PIL", "numpy", "cv2", "fontTools", "brotli"]
 찾은부품 = {이름: False for 이름 in 부품}
-실행기됨 = False
 if 파이썬.exists():
     잔소리 = (
         "import importlib.util as u,sys,json\n"
         "p=sys.argv[1]\n"
         "sys.path.insert(0,p) if p else None\n"
         "n=%r\n"
-        "print(json.dumps({k:(u.find_spec(k) is not None) for k in n+['volcano_run']}))\n"
+        "print(json.dumps({k:(u.find_spec(k) is not None) for k in n}))\n"
     ) % 부품
     try:
         답 = subprocess.run(
-            [str(파이썬), "-c", 잔소리, str(실행기) if 실행기.exists() else ""],
+            [str(파이썬), "-c", 잔소리, ""],
             capture_output=True, text=True, timeout=15,
         )
         본것 = json.loads(답.stdout.strip() or "{}")
         찾은부품 = {이름: bool(본것.get(이름)) for 이름 in 부품}
-        실행기됨 = bool(본것.get("volcano_run"))
     except Exception:
         pass
 
@@ -211,25 +208,7 @@ if claude자리:
          + ("" if 로그인 is not None else " (모름 — 물어보지 못했습니다)"),
          "볼케이노 앱의 [로그인 하기] 를 누르세요")
 
-# ── 3. 실행기 ───────────────────────────────────────────────
-# 주소가 아직 없을 때 하는 말. 무엇인지 · 왜 없는지 · 누구 잘못인지 · 무엇을 기다리면 되는지를
-# 한 번에 말해 준다. 여기서 「설치를 다시 돌리라」 고 하면 안 된다 — 다시 돌려도 달라지지 않는다.
-실행기설명 = (
-    "실행기는 볼케이노가 주는 파일 두 개(volcano_run.py · volcano_drive.py)입니다. "
-    "서버가 내리는 지시를 이 컴퓨터에서 실제로 실행하는 부품입니다. "
-    "아직 받을 주소가 정해지지 않아 비어 있습니다 — 사용자가 잘못한 것이 아닙니다. "
-    "볼케이노 운영자가 주소를 정하면 앱을 다시 열 때 저절로 받아집니다. 따로 하실 일이 없습니다."
-)
-실행기_주소 = str(설정.get("실행기_주소") or "TODO")
-실행기있음 = (실행기 / "volcano_run.py").exists() and (실행기 / "volcano_drive.py").exists()
-if 실행기_주소 in ("", "TODO"):
-    적기(False, "실행기 (volcano_run.py · volcano_drive.py)", 실행기설명, 기다림=True)
-else:
-    적기(실행기있음, "실행기 (volcano_run.py · volcano_drive.py)", 다시깔기)
-    적기(실행기됨, "실행기 불러오기 (import volcano_run)",
-        "실행기 폴더가 깨졌습니다 — " + 다시깔기)
-
-# ── 4. 설정과 열쇠 ──────────────────────────────────────────
+# ── 3. 설정과 열쇠 ──────────────────────────────────────────
 적기((집 / "env").exists(), "설정 파일 (env)", 다시깔기)
 
 # ── 볼케이노가 붙었나 · 승인됐나 ───────────────────────────

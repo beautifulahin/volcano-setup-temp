@@ -18,14 +18,13 @@ SRC="${VOLCANO_SRC:-}"
 VOL="$DEST/.volcano"
 BIN="$VOL/bin"
 KEYS="$VOL/keys"
-RUNNER="$VOL/runner"
 SETUP="$VOL/설치기"
 JOBS="$DEST/volcano_jobs"
 VENV="$VOL/venv"
 PY="$VENV/bin/python3"
 LOG="$VOL/설치.log"
 
-mkdir -p "$VOL" "$BIN" "$KEYS" "$RUNNER" "$SETUP" "$JOBS"
+mkdir -p "$VOL" "$BIN" "$KEYS" "$SETUP" "$JOBS"
 chmod 700 "$KEYS" 2>/dev/null || true
 
 log(){  printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG" 2>/dev/null || true; }
@@ -95,42 +94,6 @@ has_ass(){
 
 export PATH="$BIN:$DEST/.local/bin:$PATH"
 
-# ── 실행기 받기 (6단계 알맹이) ──────────────────────────────
-# 앱도 이것만 따로 부른다(VOLCANO_ONLY_STEP=6). 받는 법이 두 벌이 되지 않게 함수 하나로 둔다.
-get_runner(){
-  if is_todo "$RUNNER_URL"; then
-    warn "실행기 주소가 아직 비어 있습니다" "볼케이노 운영자가 주소를 정하면 앱을 다시 열 때 저절로 받아집니다. 따로 하실 일이 없습니다"
-    return 0
-  fi
-  fetch "$RUNNER_URL" "$VOL/실행기꾸러미" || die "실행기를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요"
-  if ! is_todo "$RUNNER_SHA"; then
-    if has shasum; then SUM="$(shasum -a 256 "$VOL/실행기꾸러미" | awk '{print $1}')"
-    else                SUM="$(sha256sum "$VOL/실행기꾸러미" | awk '{print $1}')"; fi
-    [ "$SUM" = "$RUNNER_SHA" ] || die "받은 실행기가 원본과 다릅니다" "인터넷이 불안정할 수 있습니다. 설치 명령을 한 번 더 돌려 주세요"
-    ok "실행기 원본 대조"
-  fi
-  case "$RUNNER_URL" in
-    *.zip) unpack "$VOL/실행기꾸러미" "$RUNNER" ;;
-    *)     tar -xzf "$VOL/실행기꾸러미" -C "$RUNNER" --strip-components=1 2>/dev/null || true
-           # 꾸러미에 폴더가 없고 파일만 들었으면 한 겹 벗기기는 아무것도 못 꺼낸다.
-           # 그런데 맥 tar 는 그래도 0 을 돌려준다 — 종료코드 말고 **나온 것**으로 판단한다.
-           [ -f "$RUNNER/volcano_run.py" ] || tar -xzf "$VOL/실행기꾸러미" -C "$RUNNER" ;;
-  esac
-  rm -f "$VOL/실행기꾸러미"
-  [ -f "$RUNNER/volcano_run.py" ] || die "실행기 안에 volcano_run.py 가 없습니다" "만든 사람에게 알려 주세요"
-  ok "실행기 → $RUNNER"
-}
-
-# 한 단계만 돌려 달라고 하면 그것만 돌리고 끝낸다.
-# 설정.json 은 이미 있는 것을 그대로 읽는다 — 앱이 방금 받는곳에서 새로 받아 둔 것이다.
-if [ "${VOLCANO_ONLY_STEP:-}" = "6" ]; then
-  RUNNER_URL="$(cfg_get 실행기_주소)"
-  RUNNER_SHA="$(cfg_get 실행기_sha)"
-  step 6 "실행기 내려받기"
-  get_runner
-  exit 0
-fi
-
 case "$(uname -s)" in
   Darwin) OSNAME=macos ;;
   Linux)  OSNAME=linux ;;
@@ -156,7 +119,7 @@ log "=== 설치 시작 dest=$DEST os=$OSNAME arch=$ARCH ==="
 step 1 "자리 만들기"
 ok "$VOL (도구·열쇠·설정)"
 ok "$JOBS (작업장)"
-# 설정.json 만은 **받는곳 것이 먼저**다. 운영자가 실행기 주소를 채워 올리면
+# 설정.json 만은 **받는곳 것이 먼저**다. 운영자가 무엇을 고쳐 올리면
 # 앱을 다시 굽지 않아도 그 값이 들어와야 하기 때문이다(다른 꾸러미는 앱이 품고 온 것이 먼저).
 if fetch "$BASE/설정.json" "$SETUP/설정.json" 2>/dev/null; then
   ok "설정.json 을 받는곳에서 가져왔습니다"
@@ -168,8 +131,6 @@ elif [ -n "$SRC" ] && [ -f "$SRC/설정.json" ]; then
 else
   warn "설정.json 을 가져오지 못했습니다" "$(why_fail "설정.json")"
 fi
-RUNNER_URL="$(cfg_get 실행기_주소)"
-RUNNER_SHA="$(cfg_get 실행기_sha)"
 
 # ── 2. 파이썬 ───────────────────────────────────────────────
 step 2 "파이썬 3.12 준비"
@@ -274,12 +235,8 @@ else
   ok "yt-dlp"
 fi
 
-# ── 6. 실행기 ───────────────────────────────────────────────
-step 6 "실행기 내려받기"
-get_runner
-
-# ── 7. Claude Code ──────────────────────────────────────────
-step 7 "Claude Code 준비"
+# ── 6. Claude Code ──────────────────────────────────────────
+step 6 "Claude Code 준비"
 if has claude; then
   skip "claude ($(command -v claude))"
 else
@@ -296,6 +253,61 @@ else
   fi
 fi
 
+# ── 7. VS Code ──────────────────────────────────────────────
+# 사람들이 실제로 쓰는 길은 VS Code 다(사용자 지시 2026-09-05).
+# 관리자 비밀번호를 묻지 않으려고 dmg 가 아니라 zip 을 받아 응용 프로그램 폴더에 놓는다.
+step 7 "VS Code 준비"
+# 시험(VOLCANO_DEST)일 때는 진짜 응용 프로그램 폴더를 쳐다보지도 않는다 —
+# 앞판에서 시험이 진짜 자리에 앱을 깔아 버린 적이 있다(실측 2026-09-05).
+VSAPP=""
+if [ -n "${VOLCANO_DEST:-}" ]; then
+  VSLOOK="$DEST/Applications/Visual Studio Code.app"
+  [ -d "$VSLOOK" ] && VSAPP="$VSLOOK"
+else
+  for cand in "/Applications/Visual Studio Code.app" "$DEST/Applications/Visual Studio Code.app"; do
+    [ -d "$cand" ] && VSAPP="$cand" && break
+  done
+fi
+if [ -n "$VSAPP" ]; then
+  skip "VS Code ($VSAPP)"
+else
+  if [ -n "${VOLCANO_DEST:-}" ]; then
+    VSDIR="$DEST/Applications"; mkdir -p "$VSDIR" 2>/dev/null || true
+  else
+    VSDIR="/Applications"
+    { [ -d "$VSDIR" ] && [ -w "$VSDIR" ]; } || { VSDIR="$DEST/Applications"; mkdir -p "$VSDIR" 2>/dev/null || true; }
+  fi
+  if fetch "https://update.code.visualstudio.com/latest/darwin-universal/stable" "$VOL/vscode.zip" >>"$LOG" 2>&1; then
+    if ditto -x -k "$VOL/vscode.zip" "$VOL/vscode_x" >>"$LOG" 2>&1; then
+      SRCAPP="$(/usr/bin/find "$VOL/vscode_x" -maxdepth 2 -type d -name '*.app' -print 2>/dev/null | head -1)"
+      if [ -n "$SRCAPP" ] && ditto "$SRCAPP" "$VSDIR/Visual Studio Code.app" >>"$LOG" 2>&1; then
+        xattr -dr com.apple.quarantine "$VSDIR/Visual Studio Code.app" 2>/dev/null || true
+        VSAPP="$VSDIR/Visual Studio Code.app"
+        ok "VS Code → $VSAPP"
+      fi
+    fi
+    rm -f "$VOL/vscode.zip" 2>/dev/null || true
+    /usr/bin/find "$VOL/vscode_x" -delete 2>/dev/null || true
+  fi
+  [ -n "$VSAPP" ] || warn "VS Code 를 넣지 못했습니다" "설치는 계속합니다. code.visualstudio.com 에서 직접 받아 설치하셔도 됩니다"
+fi
+
+# 확장(Claude Code) 넣기 · code 명령 자리 잡아 두기
+CODEBIN=""
+if [ -n "$VSAPP" ] && [ -x "$VSAPP/Contents/Resources/app/bin/code" ]; then
+  CODEBIN="$VSAPP/Contents/Resources/app/bin/code"
+elif [ -z "${VOLCANO_DEST:-}" ] && has code; then
+  CODEBIN="$(command -v code)"
+fi
+if [ -n "$CODEBIN" ]; then
+  if "$CODEBIN" --install-extension anthropic.claude-code --force >>"$LOG" 2>&1; then
+    ok "VS Code 확장 (Claude Code)"
+  else
+    warn "VS Code 확장을 넣지 못했습니다" "VS Code 를 열고 확장에서 「Claude Code」를 찾아 설치하세요"
+  fi
+  ln -sfn "$CODEBIN" "$BIN/code" 2>/dev/null || true
+fi
+
 # ── 8. 설정 적기 ────────────────────────────────────────────
 step 8 "설정 적기"
 [ -f "$VOL/env" ] || : >"$VOL/env"
@@ -310,8 +322,8 @@ env_add(){
 }
 env_add VOLCANO_HOME   "export VOLCANO_HOME=\"$VOL\""
 env_add VOLCANO_PY     "export VOLCANO_PY=\"$PY\""
-env_add VOLCANO_RUNNER "export VOLCANO_RUNNER=\"$RUNNER\""
 env_add VOLCANO_JOBS   "export VOLCANO_JOBS=\"$JOBS\""
+[ -n "${CODEBIN:-}" ] && env_add VOLCANO_CODE "export VOLCANO_CODE=\"$CODEBIN\""
 env_add "$BIN"         "export PATH=\"$BIN:$DEST/.local/bin:\$PATH\""
 
 case "${SHELL:-}" in *zsh) RCFILE="$DEST/.zshrc" ;; *) RCFILE="$DEST/.bashrc" ;; esac

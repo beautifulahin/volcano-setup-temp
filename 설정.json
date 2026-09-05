@@ -1,8 +1,6 @@
 {
   "_설명": "운영자에게 받아 채울 값. TODO 인 동안에는 설치기가 그 단계를 건너뛰고 점검표에 ✗ 로 표시한다. 가입은 운영자가 따로 받으므로 설치기는 메일을 묻지 않는다.",
   "받는곳": "https://beautifulahin.github.io/volcano-setup-temp",
-  "실행기_주소": "TODO",
-  "실행기_sha": "TODO",
   "mcp_주소": "https://volcano-mcp.groove1027.workers.dev",
   "mcp_이름": "volcano",
   "채널별_키": {

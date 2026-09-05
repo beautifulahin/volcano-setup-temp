@@ -971,7 +971,7 @@ def 창밑글(이름):
     시험은 그 둘만으로 한다."""
     길 = os.pathsep.join([str(집 / "bin"), str(파이썬.parent), os.environ.get("PATH", "")])
     밑 = {"VOLCANO_HOME": str(집), "PATH": 길}
-    for 키 in ("VOLCANO_DEST", "VOLCANO_JOBS", "VOLCANO_RUNNER",
+    for 키 in ("VOLCANO_DEST", "VOLCANO_JOBS",
                "VOLCANO_PY", "VOLCANO_BASE", "VOLCANO_SRC"):
         값 = os.environ.get(키)
         if 값:

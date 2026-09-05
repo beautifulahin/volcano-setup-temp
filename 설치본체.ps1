@@ -21,7 +21,6 @@ $DEST = if ($env:VOLCANO_DEST) { $env:VOLCANO_DEST } else { $env:LOCALAPPDATA }
 $vHome    = Join-Path $DEST 'volcano'
 $BIN   = Join-Path $vHome 'bin'
 $KEYS  = Join-Path $vHome 'keys'
-$RUNNER= Join-Path $vHome 'runner'
 $setupDir = Join-Path $vHome '설치기'
 $VENV  = Join-Path $vHome 'venv'
 # 맥·리눅스에서 흉내 낼 때는 venv/bin/python3 에 생긴다. 시험이 여기서 헛되이 죽지 않게 둘 다 본다.
@@ -34,11 +33,11 @@ $JOBS  = if ($env:VOLCANO_JOBS_DIR) { $env:VOLCANO_JOBS_DIR }
 $LOG   = Join-Path $vHome '설치.log'
 $SRC   = $env:VOLCANO_SRC
 
-foreach ($dir in @($vHome,$BIN,$KEYS,$RUNNER,$setupDir,$JOBS)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+foreach ($dir in @($vHome,$BIN,$KEYS,$setupDir,$JOBS)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
 
 function Log($msg) { try { Add-Content -Path $LOG -Value ("{0} {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg) -Encoding UTF8 } catch {} }
 function Say($msg)   { Write-Host $msg; Log $msg }
-function Step($num,$msg) { Write-Host ""; Write-Host ("[{0}/11] {1}" -f $num,$msg) -ForegroundColor Cyan; Log "[$num/11] $msg" }
+function Step($num,$msg) { Write-Host ""; Write-Host ("[{0}/10] {1}" -f $num,$msg) -ForegroundColor Cyan; Log "[$num/10] $msg" }
 function Ok($msg) { Write-Host ("  OK  " + $msg) -ForegroundColor Green; Log "OK $msg" }
 function Skip($msg) { Write-Host ("   ·  " + $msg + " — 이미 있어 건너뜁니다"); Log "SKIP $msg" }
 function Warn($msg,$todo) { Write-Host ("  !   " + $msg) -ForegroundColor Yellow; Write-Host ("      -> " + $todo) -ForegroundColor Yellow; Log "WARN $msg :: $todo" }
@@ -169,43 +168,6 @@ function HasSubFilter($dir) {
 
 $env:PATH = "$BIN;" + (Join-Path $env:USERPROFILE '.local\bin') + ";" + $env:PATH
 
-# ── 실행기 받기 (6단계 알맹이) ──────────────────────────────
-# 앱도 이것만 따로 부른다($env:VOLCANO_ONLY_STEP=6). 받는 법이 두 벌이 되지 않게 함수 하나로 둔다.
-function FetchRunner($url,$sha) {
-  if (IsEmpty $url) {
-    Warn "실행기 주소가 아직 비어 있습니다" "볼케이노 운영자가 주소를 정하면 앱을 다시 열 때 저절로 받아집니다. 따로 하실 일이 없습니다"
-    return
-  }
-  $pkg = Join-Path $vHome '실행기꾸러미'
-  try { Fetch $url $pkg } catch { Fail "실행기를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
-  if (-not (IsEmpty $sha)) {
-    $gotHash = (Get-FileHash $pkg -Algorithm SHA256).Hash.ToLower()
-    if ($gotHash -ne $sha.ToLower()) { Fail "받은 실행기가 원본과 다릅니다" "인터넷이 불안정할 수 있습니다. 설치 명령을 한 번 더 돌려 주세요" }
-    Ok "실행기 원본 대조"
-  }
-  if ($url -match '\.zip$') { Expand-Archive -Path $pkg -DestinationPath $RUNNER -Force }
-  else {
-    & tar -xzf $pkg -C $RUNNER --strip-components=1 2>$null
-    # 폴더 없이 파일만 든 꾸러미는 한 겹 벗기기가 아무것도 못 꺼낸다. 종료코드 말고 나온 것으로 본다.
-    if (-not (Test-Path (Join-Path $RUNNER 'volcano_run.py'))) { & tar -xzf $pkg -C $RUNNER }
-  }
-  Remove-Item -Force $pkg -ErrorAction SilentlyContinue
-  if (-not (Test-Path (Join-Path $RUNNER 'volcano_run.py'))) { Fail "실행기 안에 volcano_run.py 가 없습니다" "만든 사람에게 알려 주세요" }
-  Ok "실행기 -> $RUNNER"
-}
-
-# 한 단계만 돌려 달라고 하면 그것만 돌리고 끝낸다.
-# 설정.json 은 이미 있는 것을 그대로 읽는다 — 앱이 방금 받는곳에서 새로 받아 둔 것이다.
-if ($env:VOLCANO_ONLY_STEP -eq '6') {
-  $cfg6 = @{}
-  try { $cfg6 = Get-Content (Join-Path $setupDir '설정.json') -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
-  $url6 = if ($cfg6.'실행기_주소') { [string]$cfg6.'실행기_주소' } else { 'TODO' }
-  $sha6  = if ($cfg6.'실행기_sha')  { [string]$cfg6.'실행기_sha' }  else { 'TODO' }
-  Step 6 "실행기 내려받기"
-  FetchRunner $url6 $sha6
-  exit 0
-}
-
 Write-Host "────────────────────────────────────"
 Write-Host " 볼케이노 설치기"
 Write-Host " 설치 자리 : $vHome"
@@ -219,7 +181,7 @@ Step 1 "자리 만들기"
 Ok "$vHome (도구·열쇠·설정)"
 Ok "$JOBS (작업장)"
 $cfg = @{}
-# 설정.json 만은 **받는곳 것이 먼저**다. 운영자가 실행기 주소를 채워 올리면
+# 설정.json 만은 **받는곳 것이 먼저**다. 운영자가 무엇을 고쳐 올리면
 # 앱을 다시 굽지 않아도 그 값이 들어와야 하기 때문이다(다른 꾸러미는 앱이 품고 온 것이 먼저).
 $cfgPath = Join-Path $setupDir '설정.json'
 try { Fetch "$baseUrl/설정.json" $cfgPath; Ok "설정.json 을 받는곳에서 가져왔습니다" }
@@ -228,12 +190,10 @@ catch {
   elseif ($SRC -and (Test-Path (Join-Path $SRC '설정.json'))) {
     Copy-Item (Join-Path $SRC '설정.json') $cfgPath -Force; Ok "설정.json (앱이 품고 온 것)"
   } else {
-    Warn "설정.json 을 가져오지 못했습니다" "인터넷 없이 돌리는 중이라면 넘어갑니다. 실행기·가입은 나중에 다시 돌리면 됩니다"
+    Warn "설정.json 을 가져오지 못했습니다" "인터넷 없이 돌리는 중이라면 넘어갑니다. 나중에 다시 돌리면 됩니다"
   }
 }
 try { $cfg = Get-Content $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $cfg = @{} }
-$runnerUrl = if ($cfg.'실행기_주소') { [string]$cfg.'실행기_주소' } else { 'TODO' }
-$runnerSha  = if ($cfg.'실행기_sha')  { [string]$cfg.'실행기_sha' }  else { 'TODO' }
 
 # ── 2. 파이썬 (uv) ──────────────────────────────────────────
 Step 2 "파이썬 3.12 준비"
@@ -342,14 +302,10 @@ else {
   Ok 'yt-dlp'
 }
 
-# ── 6. 실행기 ───────────────────────────────────────────────
-Step 6 "실행기 내려받기"
-FetchRunner $runnerUrl $runnerSha
-
-# ── 7. Claude Code ──────────────────────────────────────────
+# ── 6. Claude Code ──────────────────────────────────────────
 $script:claudePath = $null
 $script:codePath = $null
-Step 7 "Claude Code 준비"
+Step 6 "Claude Code 준비"
 if (Have 'claude') { Skip 'claude' }
 else {
   try {
@@ -373,11 +329,11 @@ else {
   else { Warn "Claude Code 를 설치하지 못했습니다" "설치는 계속합니다. 나중에 PowerShell 에 이렇게 치세요: irm https://claude.ai/install.ps1 | iex" }
 }
 
-# ── 8. 설정 적기 ────────────────────────────────────────────
+# ── 7. 설정 적기 ────────────────────────────────────────────
 # ── 7-2. VS Code ────────────────────────────────────────────
 # 사용자 지시 2026-09-05: 「다 설치되면 vscode 를 설치되게 해줘」.
 # 없어도 볼케이노는 돈다 — 그래서 실패해도 설치를 멈추지 않는다(Warn 으로 넘긴다).
-Step 8 "VS Code 준비"
+Step 7 "VS Code 준비"
 $codeFound = $null
 foreach ($c in @(
   (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\bin\code.cmd'),
@@ -438,7 +394,6 @@ try {
       'VOLCANO_HOME'   = $vHome
       'VOLCANO_PY'     = $PY
       'VOLCANO_JOBS'   = $JOBS
-      'VOLCANO_RUNNER' = $RUNNER
     }
   } | ConvertTo-Json -Depth 5
   # JSON 에는 BOM 을 넣지 않는다 — 붙이면 VS Code 가 설정을 못 읽는다.
@@ -447,7 +402,7 @@ try {
   Log "VS Code 설정을 놓았다: $vscDir"
 } catch { Log ("VS Code 설정 실패: " + $_) }
 
-Step 9 "설정 적기"
+Step 8 "설정 적기"
 # 클로드코드 자리를 적어 둔다 — 로그인 창이 이것을 쓴다.
 if (-not $script:claudePath) {
   # 자리마다 밑둥이 비어 있을 수 있다(맥에는 APPDATA 가 없다). 비면 건너뛴다.
@@ -469,12 +424,11 @@ function AddEnvLine($needle,$lineToAdd) {
 }
 AddEnvLine 'VOLCANO_HOME'   "VOLCANO_HOME=$vHome"
 AddEnvLine 'VOLCANO_PY'     "VOLCANO_PY=$PY"
-AddEnvLine 'VOLCANO_RUNNER' "VOLCANO_RUNNER=$RUNNER"
 AddEnvLine 'VOLCANO_JOBS'   "VOLCANO_JOBS=$JOBS"
 if ($script:claudePath) { AddEnvLine 'VOLCANO_CLAUDE' "VOLCANO_CLAUDE=$($script:claudePath)" }
 if ($script:codePath)   { AddEnvLine 'VOLCANO_CODE'   "VOLCANO_CODE=$($script:codePath)" }
 
-foreach ($pair in @(@('VOLCANO_HOME',$vHome), @('VOLCANO_PY',$PY), @('VOLCANO_RUNNER',$RUNNER), @('VOLCANO_JOBS',$JOBS))) {
+foreach ($pair in @(@('VOLCANO_HOME',$vHome), @('VOLCANO_PY',$PY), @('VOLCANO_JOBS',$JOBS))) {
   if (-not [Environment]::GetEnvironmentVariable($pair[0],'User')) {
     [Environment]::SetEnvironmentVariable($pair[0], $pair[1], 'User')
   }
@@ -532,8 +486,8 @@ try {
 try { FetchPkg '점검.py' (Join-Path $setupDir '점검.py') } catch { Warn "점검.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
 try { FetchPkg '설치마무리.py' (Join-Path $setupDir '설치마무리.py') } catch { Warn "설치마무리.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
 
-# ── 9. 바탕화면 바로가기 ────────────────────────────────────
-Step 10 "바탕화면 바로가기 만들기"
+# ── 8. 바탕화면 바로가기 ────────────────────────────────────
+Step 9 "바탕화면 바로가기 만들기"
 # 바탕화면. 시험(VOLCANO_DEST)일 때는 진짜 바탕화면에 아무것도 놓지 않는다.
 if ($env:VOLCANO_DEST) {
   $desktop = Join-Path $DEST 'Desktop'
@@ -577,7 +531,6 @@ $launcherPs = @"
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 `$env:VOLCANO_HOME   = $(Quote $vHome)
 `$env:VOLCANO_PY     = $(Quote $PY)
-`$env:VOLCANO_RUNNER = $(Quote $RUNNER)
 `$env:VOLCANO_JOBS   = $(Quote $JOBS)
 `$env:PATH = $(Quote $BIN) + ';' + `$env:PATH
 if (Test-Path $(Quote $checkPy)) { & $(Quote $PY) $(Quote $checkPy) }
@@ -599,9 +552,9 @@ WriteBatPair $launcherBat $launcherPs -Hidden
 Ok $launcherBat
 }
 
-# ── 10. 마무리 (이 창에서 그대로) ───────────────────────────
+# ── 9. 마무리 (이 창에서 그대로) ───────────────────────────
 # 새 창을 열지 않는다. 묻는 것은 이 콘솔에서 그대로 받는다.
-Step 11 "마무리 — 로그인과 열쇠 넣기"
+Step 10 "마무리 — 로그인과 열쇠 넣기"
 $finishPy = Join-Path $setupDir '설치마무리.py'
 $finishBat = Join-Path $setupDir '마무리.bat'
 if ($env:VOLCANO_APP -eq '1') {
