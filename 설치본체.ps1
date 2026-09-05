@@ -480,9 +480,22 @@ foreach ($pair in @(@('VOLCANO_HOME',$vHome), @('VOLCANO_PY',$PY), @('VOLCANO_RU
 }
 $userPath = [Environment]::GetEnvironmentVariable('PATH','User')
 if ($null -eq $userPath) { $userPath = '' }
-if ($userPath -notlike "*$BIN*") {
-  [Environment]::SetEnvironmentVariable('PATH', ($BIN + ';' + $userPath).TrimEnd(';'), 'User')
-  Ok "PATH 에 $BIN 넣음"
+# ★ 볼케이노 폴더뿐 아니라 **클로드 자리도** 넣어야 한다. 안 넣으면 새 창을 열어도
+#   「'claude' 용어가 인식되지 않습니다」가 난다(실측 2026-09-05).
+$pathAdds = @($BIN)
+$claudeBin = Join-Path $env:USERPROFILE '.local\bin'
+if (Test-Path $claudeBin) { $pathAdds += $claudeBin }
+elseif ($script:claudePath) { $pathAdds += (Split-Path -Parent $script:claudePath) }
+$added = @()
+foreach ($one in $pathAdds) {
+  if ($one -and ($userPath -notlike ("*" + $one + "*"))) {
+    $userPath = ($one + ';' + $userPath).TrimEnd(';')
+    $added += $one
+  }
+}
+if ($added.Count -gt 0) {
+  [Environment]::SetEnvironmentVariable('PATH', $userPath, 'User')
+  foreach ($one in $added) { Ok "PATH 에 $one 넣음" }
 } else { Write-Host "   ·  PATH — 이미 들어 있습니다" }
 
 try { FetchPkg '점검.py' (Join-Path $setupDir '점검.py') } catch { Warn "점검.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
