@@ -213,7 +213,12 @@ $env:UV_NO_MODIFY_PATH     = '1'
 if (Have 'uv') { Skip 'uv' }
 else {
   try {
-    & ([scriptblock]::Create((Invoke-WebRequest -Uri 'https://astral.sh/uv/install.ps1' -UseBasicParsing).Content)) *>> $LOG
+    # ★ -UseBasicParsing 을 쓰면 .Content 가 **글자가 아니라 바이트 배열**로 온다.
+    #   그대로 scriptblock 에 넣으면 「35 32 76 105 …」 숫자 나열이 코드가 되어 파서가 죽는다
+    #   (실측 2026-09-05 — 받는 분 화면이 그 숫자로 가득 찼다). 반드시 글자로 바꿔서 넣는다.
+    $uvBody = (Invoke-WebRequest -Uri 'https://astral.sh/uv/install.ps1' -UseBasicParsing).Content
+    if ($uvBody -isnot [string]) { $uvBody = [System.Text.Encoding]::UTF8.GetString($uvBody) }
+    & ([scriptblock]::Create($uvBody)) *>> $LOG
   } catch {
     # 길이 하나뿐이면 그 길이 막힐 때 통째로 죽는다. 까닭을 남기고 다른 길로 간다.
     Log ("uv 설치 스크립트 실패: " + $_.Exception.Message)
@@ -310,7 +315,11 @@ FetchRunner $runnerUrl $runnerSha
 Step 7 "Claude Code 준비"
 if (Have 'claude') { Skip 'claude' }
 else {
-  try { & ([scriptblock]::Create((Invoke-WebRequest -Uri 'https://claude.ai/install.ps1' -UseBasicParsing).Content)) *>> $LOG } catch { Log ("claude 실패: " + $_) }
+  try {
+    $ccBody = (Invoke-WebRequest -Uri 'https://claude.ai/install.ps1' -UseBasicParsing).Content
+    if ($ccBody -isnot [string]) { $ccBody = [System.Text.Encoding]::UTF8.GetString($ccBody) }
+    & ([scriptblock]::Create($ccBody)) *>> $LOG
+  } catch { Log ("claude 실패: " + $_) }
   if (Have 'claude') { Ok 'claude' }
   else { Warn "Claude Code 를 설치하지 못했습니다" "설치는 계속합니다. 나중에 PowerShell 에 이렇게 치세요: irm https://claude.ai/install.ps1 | iex" }
 }
