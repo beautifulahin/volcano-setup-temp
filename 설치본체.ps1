@@ -6,55 +6,83 @@
 # 그때는 9단계에서 앱 바로가기를 놓고, 10단계(마무리)는 앱이 이어받으므로 건너뛴다.
 # 앱 없이 이 파일만 돌려도 예전 그대로 끝까지 간다.
 
+# ★ 이름은 ASCII — 변수·함수 이름에 한글을 쓰지 않는다. 한국어 윈도우에서 파서가 죽는다(실측 2026-09-05).
+#   irm | iex 로 받으면 PowerShell 5.1 이 본문을 UTF-8 로 안 읽어 $한글 이름이 깨진 바이트가 되고
+#   ParserError 가 화면을 덮는다. 화면에 나가는 **문자열**은 한글 그대로 둔다(깨져도 죽지는 않는다).
+
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 
-$받는곳 = ('https://beautifulahin.github.io/volcano-setup-temp').TrimEnd('/')
-if ($env:VOLCANO_BASE) { $받는곳 = $env:VOLCANO_BASE.TrimEnd('/') }
+$baseUrl = ('https://beautifulahin.github.io/volcano-setup-temp').TrimEnd('/')
+if ($env:VOLCANO_BASE) { $baseUrl = $env:VOLCANO_BASE.TrimEnd('/') }
 
 $DEST = if ($env:VOLCANO_DEST) { $env:VOLCANO_DEST } else { $env:LOCALAPPDATA }
-$집    = Join-Path $DEST 'volcano'
-$BIN   = Join-Path $집 'bin'
-$KEYS  = Join-Path $집 'keys'
-$RUNNER= Join-Path $집 'runner'
-$설치기 = Join-Path $집 '설치기'
-$VENV  = Join-Path $집 'venv'
+$vHome    = Join-Path $DEST 'volcano'
+$BIN   = Join-Path $vHome 'bin'
+$KEYS  = Join-Path $vHome 'keys'
+$RUNNER= Join-Path $vHome 'runner'
+$setupDir = Join-Path $vHome '설치기'
+$VENV  = Join-Path $vHome 'venv'
 $PY    = Join-Path $VENV 'Scripts\python.exe'
 # 작업장. 시험(VOLCANO_DEST)일 때는 진짜 홈이 아니라 시험 자리 밑에 만든다.
 $JOBS  = if ($env:VOLCANO_JOBS_DIR) { $env:VOLCANO_JOBS_DIR }
          elseif ($env:VOLCANO_DEST) { Join-Path $DEST 'volcano_jobs' }
          else                       { Join-Path $env:USERPROFILE 'volcano_jobs' }
-$LOG   = Join-Path $집 '설치.log'
+$LOG   = Join-Path $vHome '설치.log'
 $SRC   = $env:VOLCANO_SRC
 
-foreach ($자리 in @($집,$BIN,$KEYS,$RUNNER,$설치기,$JOBS)) { New-Item -ItemType Directory -Force -Path $자리 | Out-Null }
+foreach ($dir in @($vHome,$BIN,$KEYS,$RUNNER,$setupDir,$JOBS)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
 
-function 기록($글) { try { Add-Content -Path $LOG -Value ("{0} {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $글) -Encoding UTF8 } catch {} }
-function 말($글)   { Write-Host $글; 기록 $글 }
-function 단계($번,$글) { Write-Host ""; Write-Host ("[{0}/10] {1}" -f $번,$글) -ForegroundColor Cyan; 기록 "[$번/10] $글" }
-function 좋음($글) { Write-Host ("  OK  " + $글) -ForegroundColor Green; 기록 "OK $글" }
-function 넘김($글) { Write-Host ("   ·  " + $글 + " — 이미 있어 건너뜁니다"); 기록 "SKIP $글" }
-function 경고($글,$할일) { Write-Host ("  !   " + $글) -ForegroundColor Yellow; Write-Host ("      -> " + $할일) -ForegroundColor Yellow; 기록 "WARN $글 :: $할일" }
-function 실패($글,$할일) {
-  Write-Host ""; Write-Host ("  X   " + $글) -ForegroundColor Red
-  Write-Host ("      할 일: " + $할일) -ForegroundColor Red
+function Log($msg) { try { Add-Content -Path $LOG -Value ("{0} {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg) -Encoding UTF8 } catch {} }
+function Say($msg)   { Write-Host $msg; Log $msg }
+function Step($num,$msg) { Write-Host ""; Write-Host ("[{0}/10] {1}" -f $num,$msg) -ForegroundColor Cyan; Log "[$num/10] $msg" }
+function Ok($msg) { Write-Host ("  OK  " + $msg) -ForegroundColor Green; Log "OK $msg" }
+function Skip($msg) { Write-Host ("   ·  " + $msg + " — 이미 있어 건너뜁니다"); Log "SKIP $msg" }
+function Warn($msg,$todo) { Write-Host ("  !   " + $msg) -ForegroundColor Yellow; Write-Host ("      -> " + $todo) -ForegroundColor Yellow; Log "WARN $msg :: $todo" }
+function Fail($msg,$todo) {
+  Write-Host ""; Write-Host ("  X   " + $msg) -ForegroundColor Red
+  Write-Host ("      할 일: " + $todo) -ForegroundColor Red
   Write-Host ("  자세한 기록: " + $LOG)
-  기록 "FAIL $글 :: $할일"
+  Log "FAIL $msg :: $todo"
   Read-Host "  엔터를 누르면 창이 닫힙니다"
   exit 1
 }
-function 받기($주소,$자리) {
-  Invoke-WebRequest -Uri $주소 -OutFile ($자리 + '.내려받는중') -UseBasicParsing -TimeoutSec 1800
-  Move-Item -Force ($자리 + '.내려받는중') $자리
+function Fetch($url,$dir) {
+  Invoke-WebRequest -Uri $url -OutFile ($dir + '.내려받는중') -UseBasicParsing -TimeoutSec 1800
+  Move-Item -Force ($dir + '.내려받는중') $dir
 }
-function 꾸러미받기($이름,$자리) {
-  if ($SRC -and (Test-Path (Join-Path $SRC $이름))) { Copy-Item -Force (Join-Path $SRC $이름) $자리; return }
-  받기 "$받는곳/$이름" $자리
+function FetchPkg($name,$dir) {
+  if ($SRC -and (Test-Path (Join-Path $SRC $name))) { Copy-Item -Force (Join-Path $SRC $name) $dir; return }
+  Fetch "$baseUrl/$name" $dir
 }
-function 있나($이름) { $null -ne (Get-Command $이름 -ErrorAction SilentlyContinue) }
-function 비었나($값) { return (-not $값) -or ($값 -eq 'TODO') }
-function 홑($글) { "'" + (([string]$글) -replace "'", "''") + "'" }
+# 있다고 믿지 않는다 — **한 번 돌려 보고** 고른다.
+# 뿌리: where/Get-Command 는 확장자 없는 첫 줄을 준다. %APPDATA%\npm\claude 는
+# 유닉스용 셸 파일이라 윈도우가 못 돌린다 — 「is not recognized as the name of a cmdlet」.
+# 정작 도는 것은 같은 폴더의 claude.cmd 다(실측 2026-09-05, 사장님 화면).
+$TestArgs = @{ 'ffmpeg' = @('-version'); 'ffprobe' = @('-version'); 'whisper' = @('--help') }
+function FindRunnable($name) {
+  $cand = if ([IO.Path]::GetExtension($name)) { @($name) }
+          else { @("$name.cmd", "$name.exe", "$name.bat", $name) }
+  $ran = $null
+  foreach ($c in $cand) {
+    $cmd = Get-Command $c -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $cmd) { continue }
+    $src = if ($cmd.Source) { $cmd.Source } else { $cmd.Name }
+    $ta  = if ($TestArgs.ContainsKey($name)) { $TestArgs[$name] } else { @('--version') }
+    try {
+      & $src @ta *>$null
+      if ($LASTEXITCODE -eq 0) { return $src }   # 잘 돈다 — 이것으로 정한다
+      if (-not $ran) { $ran = $src }             # 뜨기는 했다 — 남겨 둔다
+    } catch { }                                  # 아예 못 띄웠다 — 이것이 그 사고다
+  }
+  # --version 을 모르는 멀쩡한 것도 있어(종료코드만으로 자르면 있는 것을 없다고 한다)
+  # 「뜨기라도 한 것」 은 살려 둔다. 하나도 못 띄웠으면 없는 것이다.
+  return $ran
+}
+function Have($name) { $null -ne (FindRunnable $name) }
+function IsEmpty($val) { return (-not $val) -or ($val -eq 'TODO') }
+function Quote($msg) { "'" + (([string]$msg) -replace "'", "''") + "'" }
 
 # ── 윈도우 .bat 은 순수 ASCII 로만 쓴다 ──────────────────────
 # cmd 는 .bat 을 시스템 코드페이지(한국어 윈도우는 CP949)로 읽는다. UTF-8 한글을 넣으면
@@ -62,14 +90,14 @@ function 홑($글) { "'" + (([string]$글) -replace "'", "''") + "'" }
 # 파일 안의 chcp 65001 은 이미 읽기 시작한 뒤라 소용이 없다.
 # 그래서 .bat 은 껍데기만 두고, 한글과 실제 일은 같은 이름의 .ps1(UTF-8 BOM)에 담는다.
 # PowerShell 5.1 은 BOM 없는 UTF-8 한글도 깨뜨리므로 BOM 은 반드시 붙인다.
-function 유티에프팔쓰기($자리, $글) {
-  [IO.File]::WriteAllText($자리, (($글 -replace "`r?`n", "`r`n")), (New-Object Text.UTF8Encoding $true))
+function WriteUtf8($dir, $msg) {
+  [IO.File]::WriteAllText($dir, (($msg -replace "`r?`n", "`r`n")), (New-Object Text.UTF8Encoding $true))
 }
-function 배치쌍쓰기($배치자리, $파워셸글, [switch]$숨김) {
-  $짝 = [IO.Path]::ChangeExtension($배치자리, '.ps1')
-  유티에프팔쓰기 $짝 $파워셸글
-  if ($숨김) { try { (Get-Item $짝 -Force).Attributes = 'Hidden' } catch {} }
-  $껍데기 = @'
+function WriteBatPair($batPath, $psText, [switch]$Hidden) {
+  $pair = [IO.Path]::ChangeExtension($batPath, '.ps1')
+  WriteUtf8 $pair $psText
+  if ($Hidden) { try { (Get-Item $pair -Force).Attributes = 'Hidden' } catch {} }
+  $batShell = @'
 @echo off
 rem ============================================================
 rem  Volcano launcher shell. KEEP THIS FILE PURE ASCII.
@@ -88,286 +116,286 @@ if not exist "%VOLCANO_PS1%" (
 powershell -NoProfile -ExecutionPolicy Bypass -File "%VOLCANO_PS1%"
 exit /b %errorlevel%
 '@
-  [IO.File]::WriteAllText($배치자리, ($껍데기 -replace "`r?`n", "`r`n"), (New-Object Text.ASCIIEncoding))
+  [IO.File]::WriteAllText($batPath, ($batShell -replace "`r?`n", "`r`n"), (New-Object Text.ASCIIEncoding))
 }
-function 자막필터되나($자리) {
-  if (-not (Test-Path $자리)) { return $false }
-  try { $목록 = & $자리 -hide_banner -filters 2>$null | Out-String } catch { return $false }
-  return $목록 -match '\sass\s'
+function HasSubFilter($dir) {
+  if (-not (Test-Path $dir)) { return $false }
+  try { $filters = & $dir -hide_banner -filters 2>$null | Out-String } catch { return $false }
+  return $filters -match '\sass\s'
 }
 
 $env:PATH = "$BIN;" + (Join-Path $env:USERPROFILE '.local\bin') + ";" + $env:PATH
 
 # ── 실행기 받기 (6단계 알맹이) ──────────────────────────────
 # 앱도 이것만 따로 부른다($env:VOLCANO_ONLY_STEP=6). 받는 법이 두 벌이 되지 않게 함수 하나로 둔다.
-function 실행기받기($주소,$sha) {
-  if (비었나 $주소) {
-    경고 "실행기 주소가 아직 비어 있습니다" "볼케이노 운영자가 주소를 정하면 앱을 다시 열 때 저절로 받아집니다. 따로 하실 일이 없습니다"
+function FetchRunner($url,$sha) {
+  if (IsEmpty $url) {
+    Warn "실행기 주소가 아직 비어 있습니다" "볼케이노 운영자가 주소를 정하면 앱을 다시 열 때 저절로 받아집니다. 따로 하실 일이 없습니다"
     return
   }
-  $꾸러미 = Join-Path $집 '실행기꾸러미'
-  try { 받기 $주소 $꾸러미 } catch { 실패 "실행기를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
-  if (-not (비었나 $sha)) {
-    $잰값 = (Get-FileHash $꾸러미 -Algorithm SHA256).Hash.ToLower()
-    if ($잰값 -ne $sha.ToLower()) { 실패 "받은 실행기가 원본과 다릅니다" "인터넷이 불안정할 수 있습니다. 설치 명령을 한 번 더 돌려 주세요" }
-    좋음 "실행기 원본 대조"
+  $pkg = Join-Path $vHome '실행기꾸러미'
+  try { Fetch $url $pkg } catch { Fail "실행기를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
+  if (-not (IsEmpty $sha)) {
+    $gotHash = (Get-FileHash $pkg -Algorithm SHA256).Hash.ToLower()
+    if ($gotHash -ne $sha.ToLower()) { Fail "받은 실행기가 원본과 다릅니다" "인터넷이 불안정할 수 있습니다. 설치 명령을 한 번 더 돌려 주세요" }
+    Ok "실행기 원본 대조"
   }
-  if ($주소 -match '\.zip$') { Expand-Archive -Path $꾸러미 -DestinationPath $RUNNER -Force }
+  if ($url -match '\.zip$') { Expand-Archive -Path $pkg -DestinationPath $RUNNER -Force }
   else {
-    & tar -xzf $꾸러미 -C $RUNNER --strip-components=1 2>$null
+    & tar -xzf $pkg -C $RUNNER --strip-components=1 2>$null
     # 폴더 없이 파일만 든 꾸러미는 한 겹 벗기기가 아무것도 못 꺼낸다. 종료코드 말고 나온 것으로 본다.
-    if (-not (Test-Path (Join-Path $RUNNER 'volcano_run.py'))) { & tar -xzf $꾸러미 -C $RUNNER }
+    if (-not (Test-Path (Join-Path $RUNNER 'volcano_run.py'))) { & tar -xzf $pkg -C $RUNNER }
   }
-  Remove-Item -Force $꾸러미 -ErrorAction SilentlyContinue
-  if (-not (Test-Path (Join-Path $RUNNER 'volcano_run.py'))) { 실패 "실행기 안에 volcano_run.py 가 없습니다" "만든 사람에게 알려 주세요" }
-  좋음 "실행기 -> $RUNNER"
+  Remove-Item -Force $pkg -ErrorAction SilentlyContinue
+  if (-not (Test-Path (Join-Path $RUNNER 'volcano_run.py'))) { Fail "실행기 안에 volcano_run.py 가 없습니다" "만든 사람에게 알려 주세요" }
+  Ok "실행기 -> $RUNNER"
 }
 
 # 한 단계만 돌려 달라고 하면 그것만 돌리고 끝낸다.
 # 설정.json 은 이미 있는 것을 그대로 읽는다 — 앱이 방금 받는곳에서 새로 받아 둔 것이다.
 if ($env:VOLCANO_ONLY_STEP -eq '6') {
-  $설정6 = @{}
-  try { $설정6 = Get-Content (Join-Path $설치기 '설정.json') -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
-  $주소6 = if ($설정6.실행기_주소) { [string]$설정6.실행기_주소 } else { 'TODO' }
-  $sha6  = if ($설정6.실행기_sha)  { [string]$설정6.실행기_sha }  else { 'TODO' }
-  단계 6 "실행기 내려받기"
-  실행기받기 $주소6 $sha6
+  $cfg6 = @{}
+  try { $cfg6 = Get-Content (Join-Path $setupDir '설정.json') -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
+  $url6 = if ($cfg6.'실행기_주소') { [string]$cfg6.'실행기_주소' } else { 'TODO' }
+  $sha6  = if ($cfg6.'실행기_sha')  { [string]$cfg6.'실행기_sha' }  else { 'TODO' }
+  Step 6 "실행기 내려받기"
+  FetchRunner $url6 $sha6
   exit 0
 }
 
 Write-Host "────────────────────────────────────"
 Write-Host " 볼케이노 설치기"
-Write-Host " 설치 자리 : $집"
+Write-Host " 설치 자리 : $vHome"
 Write-Host " 작업장    : $JOBS"
 Write-Host " 관리자 권한은 쓰지 않습니다."
 Write-Host "────────────────────────────────────"
-기록 "=== 설치 시작 dest=$집 ==="
+Log "=== 설치 시작 dest=$vHome ==="
 
 # ── 1. 자리 만들기 ──────────────────────────────────────────
-단계 1 "자리 만들기"
-좋음 "$집 (도구·열쇠·설정)"
-좋음 "$JOBS (작업장)"
-$설정 = @{}
+Step 1 "자리 만들기"
+Ok "$vHome (도구·열쇠·설정)"
+Ok "$JOBS (작업장)"
+$cfg = @{}
 # 설정.json 만은 **받는곳 것이 먼저**다. 운영자가 실행기 주소를 채워 올리면
 # 앱을 다시 굽지 않아도 그 값이 들어와야 하기 때문이다(다른 꾸러미는 앱이 품고 온 것이 먼저).
-$설정자리 = Join-Path $설치기 '설정.json'
-try { 받기 "$받는곳/설정.json" $설정자리; 좋음 "설정.json 을 받는곳에서 가져왔습니다" }
+$cfgPath = Join-Path $setupDir '설정.json'
+try { Fetch "$baseUrl/설정.json" $cfgPath; Ok "설정.json 을 받는곳에서 가져왔습니다" }
 catch {
-  if (Test-Path $설정자리) { Write-Host "  ·   설정.json - 받는곳에 못 닿아 있던 것을 그대로 씁니다" }
+  if (Test-Path $cfgPath) { Write-Host "  ·   설정.json - 받는곳에 못 닿아 있던 것을 그대로 씁니다" }
   elseif ($SRC -and (Test-Path (Join-Path $SRC '설정.json'))) {
-    Copy-Item (Join-Path $SRC '설정.json') $설정자리 -Force; 좋음 "설정.json (앱이 품고 온 것)"
+    Copy-Item (Join-Path $SRC '설정.json') $cfgPath -Force; Ok "설정.json (앱이 품고 온 것)"
   } else {
-    경고 "설정.json 을 가져오지 못했습니다" "인터넷 없이 돌리는 중이라면 넘어갑니다. 실행기·가입은 나중에 다시 돌리면 됩니다"
+    Warn "설정.json 을 가져오지 못했습니다" "인터넷 없이 돌리는 중이라면 넘어갑니다. 실행기·가입은 나중에 다시 돌리면 됩니다"
   }
 }
-try { $설정 = Get-Content $설정자리 -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $설정 = @{} }
-$실행기_주소 = if ($설정.실행기_주소) { [string]$설정.실행기_주소 } else { 'TODO' }
-$실행기_sha  = if ($설정.실행기_sha)  { [string]$설정.실행기_sha }  else { 'TODO' }
+try { $cfg = Get-Content $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $cfg = @{} }
+$runnerUrl = if ($cfg.'실행기_주소') { [string]$cfg.'실행기_주소' } else { 'TODO' }
+$runnerSha  = if ($cfg.'실행기_sha')  { [string]$cfg.'실행기_sha' }  else { 'TODO' }
 
 # ── 2. 파이썬 (uv) ──────────────────────────────────────────
-단계 2 "파이썬 3.12 준비"
+Step 2 "파이썬 3.12 준비"
 # uv 가 딴 자리(사용자 홈)를 건드리지 않게 전부 우리 폴더로 못박는다.
-$env:UV_PYTHON_INSTALL_DIR = Join-Path $집 'python'
+$env:UV_PYTHON_INSTALL_DIR = Join-Path $vHome 'python'
 $env:UV_PYTHON_BIN_DIR     = $BIN
-$env:UV_CACHE_DIR          = Join-Path $집 'cache'
+$env:UV_CACHE_DIR          = Join-Path $vHome 'cache'
 $env:UV_TOOL_BIN_DIR       = $BIN
 $env:UV_INSTALL_DIR        = $BIN
 $env:UV_NO_MODIFY_PATH     = '1'
-if (있나 'uv') { 넘김 'uv' }
+if (Have 'uv') { Skip 'uv' }
 else {
   try {
     & ([scriptblock]::Create((Invoke-WebRequest -Uri 'https://astral.sh/uv/install.ps1' -UseBasicParsing).Content)) *>> $LOG
-  } catch { 실패 "uv 를 설치하지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
-  if (-not (있나 'uv')) { 실패 "uv 를 찾지 못합니다" "PowerShell 을 닫았다 열고 설치 명령을 한 번 더 돌려 주세요" }
-  좋음 'uv'
+  } catch { Fail "uv 를 설치하지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
+  if (-not (Have 'uv')) { Fail "uv 를 찾지 못합니다" "PowerShell 을 닫았다 열고 설치 명령을 한 번 더 돌려 주세요" }
+  Ok 'uv'
 }
 & uv python install 3.12 *>> $LOG
-if ($LASTEXITCODE -ne 0) { 실패 "파이썬 3.12 를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
-if (Test-Path $PY) { 넘김 "파이썬 자리 $VENV" }
+if ($LASTEXITCODE -ne 0) { Fail "파이썬 3.12 를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
+if (Test-Path $PY) { Skip "파이썬 자리 $VENV" }
 else {
   & uv venv --seed --python 3.12 $VENV *>> $LOG
-  if (-not (Test-Path $PY)) { 실패 "파이썬 자리를 만들지 못했습니다" "$VENV 폴더 이름을 바꾼 뒤 다시 돌려 주세요" }
-  좋음 "파이썬 자리 $VENV"
+  if (-not (Test-Path $PY)) { Fail "파이썬 자리를 만들지 못했습니다" "$VENV 폴더 이름을 바꾼 뒤 다시 돌려 주세요" }
+  Ok "파이썬 자리 $VENV"
 }
 
 # ── 3. 파이썬 부품 ──────────────────────────────────────────
-단계 3 "파이썬 부품 넣기 (몇 분 걸립니다)"
+Step 3 "파이썬 부품 넣기 (몇 분 걸립니다)"
 & uv pip install --python $PY --quiet pillow numpy opencv-python fonttools brotli *>> $LOG
-if ($LASTEXITCODE -ne 0) { 실패 "파이썬 부품을 넣지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
-좋음 "그림·글꼴·영상 부품"
-말 "   ·  받아쓰기(whisper) 를 넣는 중입니다 — 덩치가 커서 오래 걸립니다"
+if ($LASTEXITCODE -ne 0) { Fail "파이썬 부품을 넣지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
+Ok "그림·글꼴·영상 부품"
+Say "   ·  받아쓰기(whisper) 를 넣는 중입니다 — 덩치가 커서 오래 걸립니다"
 & uv pip install --python $PY --quiet openai-whisper *>> $LOG
-if ($LASTEXITCODE -eq 0) { 좋음 "받아쓰기(whisper)" }
-else { 경고 "받아쓰기(whisper) 를 넣지 못했습니다" "설치는 계속합니다. 마무리 단계에서 받아쓰기 열쇠를 넣으면 대신 쓸 수 있습니다" }
+if ($LASTEXITCODE -eq 0) { Ok "받아쓰기(whisper)" }
+else { Warn "받아쓰기(whisper) 를 넣지 못했습니다" "설치는 계속합니다. 마무리 단계에서 받아쓰기 열쇠를 넣으면 대신 쓸 수 있습니다" }
 
 # ── 4. ffmpeg / ffprobe ─────────────────────────────────────
-단계 4 "영상 도구(ffmpeg) 준비"
-$있는ffmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue)
-if ($있는ffmpeg -and (자막필터되나 $있는ffmpeg.Source) -and (있나 'ffprobe')) {
-  넘김 ("ffmpeg (" + $있는ffmpeg.Source + " · 자막 기능 있음)")
+Step 4 "영상 도구(ffmpeg) 준비"
+$foundFfmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue)
+if ($foundFfmpeg -and (HasSubFilter $foundFfmpeg.Source) -and (Have 'ffprobe')) {
+  Skip ("ffmpeg (" + $foundFfmpeg.Source + " · 자막 기능 있음)")
 } else {
-  $칩 = if ([Environment]::Is64BitOperatingSystem) { 'win64' } else { 'win32' }
-  $곳들 = @(
-    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-$칩-gpl.zip",
+  $arch = if ([Environment]::Is64BitOperatingSystem) { 'win64' } else { 'win32' }
+  $srcUrls = @(
+    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-$arch-gpl.zip",
     "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
   )
-  $됐나 = $false
-  foreach ($곳 in $곳들) {
-    말 ("   ·  내려받는 중: " + $곳)
-    $zip = Join-Path $집 'ffmpeg.zip'
-    $푼자리 = Join-Path $집 ('ffmpeg풀기_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
+  $gotIt = $false
+  foreach ($srcUrl in $srcUrls) {
+    Say ("   ·  내려받는 중: " + $srcUrl)
+    $zip = Join-Path $vHome 'ffmpeg.zip'
+    $unzipDir = Join-Path $vHome ('ffmpeg풀기_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
     try {
-      받기 $곳 $zip
-      Expand-Archive -Path $zip -DestinationPath $푼자리 -Force
-      foreach ($이름 in @('ffmpeg.exe','ffprobe.exe')) {
-        $찾음 = Get-ChildItem -Path $푼자리 -Filter $이름 -Recurse -File | Select-Object -First 1
-        if ($찾음) { Copy-Item -Force $찾음.FullName (Join-Path $BIN $이름) }
+      Fetch $srcUrl $zip
+      Expand-Archive -Path $zip -DestinationPath $unzipDir -Force
+      foreach ($name in @('ffmpeg.exe','ffprobe.exe')) {
+        $found = Get-ChildItem -Path $unzipDir -Filter $name -Recurse -File | Select-Object -First 1
+        if ($found) { Copy-Item -Force $found.FullName (Join-Path $BIN $name) }
       }
-      Remove-Item -Recurse -Force $푼자리 -ErrorAction SilentlyContinue
+      Remove-Item -Recurse -Force $unzipDir -ErrorAction SilentlyContinue
       Remove-Item -Force $zip -ErrorAction SilentlyContinue
-    } catch { 기록 ("ffmpeg 실패: " + $_); continue }
-    if (자막필터되나 (Join-Path $BIN 'ffmpeg.exe')) { $됐나 = $true; break }
-    경고 "받은 ffmpeg 에 자막 기능이 없습니다" "다른 곳에서 다시 받아 봅니다"
+    } catch { Log ("ffmpeg 실패: " + $_); continue }
+    if (HasSubFilter (Join-Path $BIN 'ffmpeg.exe')) { $gotIt = $true; break }
+    Warn "받은 ffmpeg 에 자막 기능이 없습니다" "다른 곳에서 다시 받아 봅니다"
   }
-  if (-not $됐나) { 실패 "자막을 얹을 수 있는 ffmpeg 를 구하지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요. 그래도 안 되면 만든 사람에게 알려 주세요" }
-  if (-not (Test-Path (Join-Path $BIN 'ffprobe.exe'))) { 실패 "ffprobe 가 없습니다" "설치 명령을 한 번 더 돌려 주세요" }
-  좋음 "ffmpeg · ffprobe (자막 기능 확인함)"
+  if (-not $gotIt) { Fail "자막을 얹을 수 있는 ffmpeg 를 구하지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요. 그래도 안 되면 만든 사람에게 알려 주세요" }
+  if (-not (Test-Path (Join-Path $BIN 'ffprobe.exe'))) { Fail "ffprobe 가 없습니다" "설치 명령을 한 번 더 돌려 주세요" }
+  Ok "ffmpeg · ffprobe (자막 기능 확인함)"
 }
 
 # ── 5. yt-dlp ───────────────────────────────────────────────
-단계 5 "영상 받는 도구(yt-dlp) 준비"
-if (있나 'yt-dlp') { 넘김 'yt-dlp' }
+Step 5 "영상 받는 도구(yt-dlp) 준비"
+if (Have 'yt-dlp') { Skip 'yt-dlp' }
 else {
-  try { 받기 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' (Join-Path $BIN 'yt-dlp.exe') }
-  catch { 실패 "yt-dlp 를 받지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
-  좋음 'yt-dlp'
+  try { Fetch 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' (Join-Path $BIN 'yt-dlp.exe') }
+  catch { Fail "yt-dlp 를 받지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
+  Ok 'yt-dlp'
 }
 
 # ── 6. 실행기 ───────────────────────────────────────────────
-단계 6 "실행기 내려받기"
-실행기받기 $실행기_주소 $실행기_sha
+Step 6 "실행기 내려받기"
+FetchRunner $runnerUrl $runnerSha
 
 # ── 7. Claude Code ──────────────────────────────────────────
-단계 7 "Claude Code 준비"
-if (있나 'claude') { 넘김 'claude' }
+Step 7 "Claude Code 준비"
+if (Have 'claude') { Skip 'claude' }
 else {
-  try { & ([scriptblock]::Create((Invoke-WebRequest -Uri 'https://claude.ai/install.ps1' -UseBasicParsing).Content)) *>> $LOG } catch { 기록 ("claude 실패: " + $_) }
-  if (있나 'claude') { 좋음 'claude' }
-  else { 경고 "Claude Code 를 설치하지 못했습니다" "설치는 계속합니다. 나중에 PowerShell 에 이렇게 치세요: irm https://claude.ai/install.ps1 | iex" }
+  try { & ([scriptblock]::Create((Invoke-WebRequest -Uri 'https://claude.ai/install.ps1' -UseBasicParsing).Content)) *>> $LOG } catch { Log ("claude 실패: " + $_) }
+  if (Have 'claude') { Ok 'claude' }
+  else { Warn "Claude Code 를 설치하지 못했습니다" "설치는 계속합니다. 나중에 PowerShell 에 이렇게 치세요: irm https://claude.ai/install.ps1 | iex" }
 }
 
 # ── 8. 설정 적기 ────────────────────────────────────────────
-단계 8 "설정 적기"
-$env파일 = Join-Path $집 'env'
-if (-not (Test-Path $env파일)) { New-Item -ItemType File -Path $env파일 | Out-Null }
-$있는줄 = Get-Content $env파일 -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
-if ($null -eq $있는줄) { $있는줄 = '' }
-function 줄넣기($찾을것,$넣을줄) {
-  if ($script:있는줄 -match [regex]::Escape($찾을것)) { Write-Host ("   ·  " + $찾을것 + " — 이미 적혀 있어 그대로 둡니다") }
-  else { Add-Content -Path $script:env파일 -Value $넣을줄 -Encoding UTF8; $script:있는줄 += "`n$넣을줄"; 좋음 $찾을것 }
+Step 8 "설정 적기"
+$envFile = Join-Path $vHome 'env'
+if (-not (Test-Path $envFile)) { New-Item -ItemType File -Path $envFile | Out-Null }
+$envText = Get-Content $envFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+if ($null -eq $envText) { $envText = '' }
+function AddEnvLine($needle,$lineToAdd) {
+  if ($script:envText -match [regex]::Escape($needle)) { Write-Host ("   ·  " + $needle + " — 이미 적혀 있어 그대로 둡니다") }
+  else { Add-Content -Path $script:envFile -Value $lineToAdd -Encoding UTF8; $script:envText += "`n$lineToAdd"; Ok $needle }
 }
-줄넣기 'VOLCANO_HOME'   "VOLCANO_HOME=$집"
-줄넣기 'VOLCANO_PY'     "VOLCANO_PY=$PY"
-줄넣기 'VOLCANO_RUNNER' "VOLCANO_RUNNER=$RUNNER"
-줄넣기 'VOLCANO_JOBS'   "VOLCANO_JOBS=$JOBS"
+AddEnvLine 'VOLCANO_HOME'   "VOLCANO_HOME=$vHome"
+AddEnvLine 'VOLCANO_PY'     "VOLCANO_PY=$PY"
+AddEnvLine 'VOLCANO_RUNNER' "VOLCANO_RUNNER=$RUNNER"
+AddEnvLine 'VOLCANO_JOBS'   "VOLCANO_JOBS=$JOBS"
 
-foreach ($짝 in @(@('VOLCANO_HOME',$집), @('VOLCANO_PY',$PY), @('VOLCANO_RUNNER',$RUNNER), @('VOLCANO_JOBS',$JOBS))) {
-  if (-not [Environment]::GetEnvironmentVariable($짝[0],'User')) {
-    [Environment]::SetEnvironmentVariable($짝[0], $짝[1], 'User')
+foreach ($pair in @(@('VOLCANO_HOME',$vHome), @('VOLCANO_PY',$PY), @('VOLCANO_RUNNER',$RUNNER), @('VOLCANO_JOBS',$JOBS))) {
+  if (-not [Environment]::GetEnvironmentVariable($pair[0],'User')) {
+    [Environment]::SetEnvironmentVariable($pair[0], $pair[1], 'User')
   }
 }
-$사용자PATH = [Environment]::GetEnvironmentVariable('PATH','User')
-if ($null -eq $사용자PATH) { $사용자PATH = '' }
-if ($사용자PATH -notlike "*$BIN*") {
-  [Environment]::SetEnvironmentVariable('PATH', ($BIN + ';' + $사용자PATH).TrimEnd(';'), 'User')
-  좋음 "PATH 에 $BIN 넣음"
+$userPath = [Environment]::GetEnvironmentVariable('PATH','User')
+if ($null -eq $userPath) { $userPath = '' }
+if ($userPath -notlike "*$BIN*") {
+  [Environment]::SetEnvironmentVariable('PATH', ($BIN + ';' + $userPath).TrimEnd(';'), 'User')
+  Ok "PATH 에 $BIN 넣음"
 } else { Write-Host "   ·  PATH — 이미 들어 있습니다" }
 
-try { 꾸러미받기 '점검.py' (Join-Path $설치기 '점검.py') } catch { 경고 "점검.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
-try { 꾸러미받기 '설치마무리.py' (Join-Path $설치기 '설치마무리.py') } catch { 경고 "설치마무리.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
+try { FetchPkg '점검.py' (Join-Path $setupDir '점검.py') } catch { Warn "점검.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
+try { FetchPkg '설치마무리.py' (Join-Path $setupDir '설치마무리.py') } catch { Warn "설치마무리.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
 
 # ── 9. 바탕화면 바로가기 ────────────────────────────────────
-단계 9 "바탕화면 바로가기 만들기"
+Step 9 "바탕화면 바로가기 만들기"
 # 바탕화면. 시험(VOLCANO_DEST)일 때는 진짜 바탕화면에 아무것도 놓지 않는다.
 if ($env:VOLCANO_DEST) {
-  $바탕 = Join-Path $DEST 'Desktop'
-  New-Item -ItemType Directory -Force -Path $바탕 | Out-Null
+  $desktop = Join-Path $DEST 'Desktop'
+  New-Item -ItemType Directory -Force -Path $desktop | Out-Null
 } else {
-  $바탕 = [Environment]::GetFolderPath('Desktop')
-  if (-not $바탕 -or -not (Test-Path $바탕)) { $바탕 = $env:USERPROFILE }
+  $desktop = [Environment]::GetFolderPath('Desktop')
+  if (-not $desktop -or -not (Test-Path $desktop)) { $desktop = $env:USERPROFILE }
 }
 if ($env:VOLCANO_APP -eq '1' -and $env:VOLCANO_APP_PATH -and (Test-Path $env:VOLCANO_APP_PATH)) {
   # 앱이 부른 것이면 바탕화면에 **앱 바로가기**를 놓는다 (검은 창이 뜨는 .bat 대신).
-  $링크 = Join-Path $바탕 '볼케이노.lnk'
+  $lnkPath = Join-Path $desktop '볼케이노.lnk'
   try {
-    $셸 = New-Object -ComObject WScript.Shell
-    $바로 = $셸.CreateShortcut($링크)
-    $바로.TargetPath = $env:VOLCANO_APP_PATH
-    $바로.WorkingDirectory = Split-Path $env:VOLCANO_APP_PATH
-    $바로.IconLocation = $env:VOLCANO_APP_PATH + ',0'
-    $바로.Description = '볼케이노'
-    $바로.Save()
-    좋음 $링크
-  } catch { 경고 "바탕화면에 아이콘을 놓지 못했습니다" "설치한 폴더의 volcano.exe 를 바탕화면으로 끌어다 놓으세요" }
-  foreach ($옛것 in @((Join-Path $바탕 '볼케이노.bat'), (Join-Path $바탕 '볼케이노.ps1'))) {
-    if (Test-Path $옛것) {
-      try { Move-Item -Force $옛것 (Join-Path $설치기 ((Split-Path -Leaf $옛것) + '.예전것')) } catch {}
+    $wshell = New-Object -ComObject WScript.Shell
+    $shortcut = $wshell.CreateShortcut($lnkPath)
+    $shortcut.TargetPath = $env:VOLCANO_APP_PATH
+    $shortcut.WorkingDirectory = Split-Path $env:VOLCANO_APP_PATH
+    $shortcut.IconLocation = $env:VOLCANO_APP_PATH + ',0'
+    $shortcut.Description = '볼케이노'
+    $shortcut.Save()
+    Ok $lnkPath
+  } catch { Warn "바탕화면에 아이콘을 놓지 못했습니다" "설치한 폴더의 volcano.exe 를 바탕화면으로 끌어다 놓으세요" }
+  foreach ($oldFile in @((Join-Path $desktop '볼케이노.bat'), (Join-Path $desktop '볼케이노.ps1'))) {
+    if (Test-Path $oldFile) {
+      try { Move-Item -Force $oldFile (Join-Path $setupDir ((Split-Path -Leaf $oldFile) + '.예전것')) } catch {}
     }
   }
 } else {
-$바로가기 = Join-Path $바탕 '볼케이노.bat'
-$점검py = Join-Path $설치기 '점검.py'
+$launcherBat = Join-Path $desktop '볼케이노.bat'
+$checkPy = Join-Path $setupDir '점검.py'
 # 한글이 든 자리·안내는 짝 .ps1 에 담고, 바탕화면에는 ASCII .bat 만 보이게 한다.
-$내용 = @"
+$launcherPs = @"
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
-`$env:VOLCANO_HOME   = $(홑 $집)
-`$env:VOLCANO_PY     = $(홑 $PY)
-`$env:VOLCANO_RUNNER = $(홑 $RUNNER)
-`$env:VOLCANO_JOBS   = $(홑 $JOBS)
-`$env:PATH = $(홑 $BIN) + ';' + `$env:PATH
-if (Test-Path $(홑 $점검py)) { & $(홑 $PY) $(홑 $점검py) }
-Set-Location $(홑 $JOBS)
+`$env:VOLCANO_HOME   = $(Quote $vHome)
+`$env:VOLCANO_PY     = $(Quote $PY)
+`$env:VOLCANO_RUNNER = $(Quote $RUNNER)
+`$env:VOLCANO_JOBS   = $(Quote $JOBS)
+`$env:PATH = $(Quote $BIN) + ';' + `$env:PATH
+if (Test-Path $(Quote $checkPy)) { & $(Quote $PY) $(Quote $checkPy) }
+Set-Location $(Quote $JOBS)
 claude
 Write-Host ''
 try { Read-Host '  엔터를 누르면 창이 닫힙니다' | Out-Null } catch {}
 "@
-배치쌍쓰기 $바로가기 $내용 -숨김
-좋음 $바로가기
+WriteBatPair $launcherBat $launcherPs -Hidden
+Ok $launcherBat
 }
 
 # ── 10. 마무리 (이 창에서 그대로) ───────────────────────────
 # 새 창을 열지 않는다. 묻는 것은 이 콘솔에서 그대로 받는다.
-단계 10 "마무리 — 로그인과 열쇠 넣기"
-$마무리py = Join-Path $설치기 '설치마무리.py'
-$마무리bat = Join-Path $설치기 '마무리.bat'
+Step 10 "마무리 — 로그인과 열쇠 넣기"
+$finishPy = Join-Path $setupDir '설치마무리.py'
+$finishBat = Join-Path $setupDir '마무리.bat'
 if ($env:VOLCANO_APP -eq '1') {
   # 앱이 제 창 안에서 마무리 화면을 이어서 띄운다. 여기서 물으면 답할 사람이 없다.
-  말 "   ·  마무리는 볼케이노 앱 창에서 이어서 합니다."
-} elseif (-not (Test-Path $마무리py)) {
-  경고 "마무리 파일이 없어 여기서 멈춥니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요"
+  Say "   ·  마무리는 볼케이노 앱 창에서 이어서 합니다."
+} elseif (-not (Test-Path $finishPy)) {
+  Warn "마무리 파일이 없어 여기서 멈춥니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요"
 } else {
   # 나중에 다시 이어서 할 때 마무리.bat 을 두 번 누르면 된다.
   # .bat 은 ASCII 껍데기, 한글과 자리는 짝 마무리.ps1(UTF-8 BOM)에 있다.
-  $마무리내용 = @"
+  $finishPs = @"
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
-`$env:VOLCANO_HOME = $(홑 $집)
-`$env:PATH = $(홑 $BIN) + ';' + (Join-Path `$env:USERPROFILE '.local\bin') + ';' + `$env:PATH
-& $(홑 $PY) $(홑 $마무리py)
+`$env:VOLCANO_HOME = $(Quote $vHome)
+`$env:PATH = $(Quote $BIN) + ';' + (Join-Path `$env:USERPROFILE '.local\bin') + ';' + `$env:PATH
+& $(Quote $PY) $(Quote $finishPy)
 Write-Host ''
 try { Read-Host '  엔터를 누르면 창이 닫힙니다' | Out-Null } catch {}
 "@
-  배치쌍쓰기 $마무리bat $마무리내용
-  말 ""
-  말 "   ·  여기서 이어서 몇 가지만 물어보겠습니다."
-  try { & $PY $마무리py }
-  catch { 경고 "마무리를 돌리지 못했습니다" ("이 파일을 두 번 눌러 주세요: " + $마무리bat) }
+  WriteBatPair $finishBat $finishPs
+  Say ""
+  Say "   ·  여기서 이어서 몇 가지만 물어보겠습니다."
+  try { & $PY $finishPy }
+  catch { Warn "마무리를 돌리지 못했습니다" ("이 파일을 두 번 눌러 주세요: " + $finishBat) }
 }
 
 Write-Host ""
 Write-Host "────────────────────────────────────"
 Write-Host " 여기까지 끝났습니다."
-Write-Host " 1) 못 넣은 것이 있으면 이렇게 이어서 하면 됩니다: $마무리bat"
+Write-Host " 1) 못 넣은 것이 있으면 이렇게 이어서 하면 됩니다: $finishBat"
 Write-Host " 2) 다음부터는 바탕화면의 「볼케이노」를 두 번 누르면 됩니다."
 Write-Host " 기록: $LOG"
 Write-Host "────────────────────────────────────"
-기록 "=== 설치 끝 ==="
+Log "=== 설치 끝 ==="

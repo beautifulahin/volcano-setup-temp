@@ -62,11 +62,65 @@ def 적기(됐나, 무엇, 할일="", 기다림=False):
 다시깔기 = "설치 명령을 한 번 더 돌려 주세요"
 
 
+# ※ 짝: 설치마무리.py 에 같은 함수가 있다. 점검.py 는 **홀로 도는 파일**이라(표준 라이브러리만,
+#    설치마무리.py 가 안 내려와도 돌아야 한다) 딸려 쓰지 못한다. 고칠 때 둘을 함께 고친다.
+# ── 프로그램 찾기 ───────────────────────────────────────────
+# 찾았다고 믿지 않는다. **한 번 돌려 보고** 고른다.
+# 뿌리: 윈도우에서 where/which 는 확장자 없는 첫 줄을 준다 —
+#   C:\Users\…\AppData\Roaming\npm\claude 는 유닉스용 셸 파일이라 윈도우가 못 돌린다.
+#   정작 도는 것은 같은 폴더의 claude.cmd 다(실측 2026-09-05, 사장님 화면).
+#   파이썬 때도 똑같은 함정이었다(where python 이 가짜 경로를 준 것).
+# 그래서 윈도우에서는 .cmd → .exe → .bat → 맨이름 차례로 보고, 돌아가는 첫 번째를 쓴다.
+시험인자 = {"ffmpeg": ["-version"], "ffprobe": ["-version"],
+          "whisper": ["--help"], "yt-dlp": ["--version"],
+          "python": ["-c", "print(1)"], "python3": ["-c", "print(1)"]}
+_찾은것 = {}          # 같은 것을 두 번 돌려 보지 않는다
+
+
+def 돌아가나(자리, 이름):
+    """정말 돌아가는지 한 번 돌려 본다.
+
+    돌려주는 값: 2=잘 돌았다(종료코드 0) · 1=뜨기는 했다 · 0=아예 못 띄웠다.
+    사장님 화면의 오류는 「is not recognized as the name of a cmdlet」 —
+    파일이 있는데 **띄우지도 못한** 것이었다(유닉스용 셸 파일을 윈도우가 못 돌린다).
+    그래서 0 은 반드시 떨어뜨린다. 다만 --version 을 모르는 멀쩡한 프로그램도 있어
+    (맥 ls 처럼) 종료코드만으로 자르면 있는 것을 없다고 하게 된다 — 그래서 1 은 살려 둔다.
+    """
+    try:
+        답 = subprocess.run([자리] + 시험인자.get(이름, ["--version"]),
+                            capture_output=True, text=True, timeout=20)
+        return 2 if 답.returncode == 0 else 1
+    except (OSError, ValueError):
+        return 0                      # 띄우지도 못했다 — 이것이 그 사고다
+    except Exception:
+        return 0
+
+
 def 찾기(이름):
-    """PATH 와 볼케이노 폴더에서 프로그램을 찾는다."""
+    """PATH·볼케이노 폴더에서 찾되 **실제로 돌아가는 것**만 돌려준다. 없으면 None."""
+    if 이름 in _찾은것:
+        return _찾은것[이름]
     덧 = [str(집 / "bin"), str(파이썬.parent)]
     길 = os.pathsep.join(덧 + [os.environ.get("PATH", "")])
-    return shutil.which(이름, path=길)
+    if 윈도우 and not os.path.splitext(이름)[1]:
+        후보들 = [이름 + ".cmd", 이름 + ".exe", ".".join([이름, "bat"]), 이름]
+    else:
+        후보들 = [이름]
+    뜨기는한것 = None
+    for 후보 in 후보들:
+        자리 = shutil.which(후보, path=길)
+        if not 자리:
+            continue
+        점수 = 돌아가나(자리, 이름)
+        if 점수 == 2:                  # 잘 돈다 — 이것으로 정한다
+            _찾은것[이름] = 자리
+            return 자리
+        if 점수 == 1 and not 뜨기는한것:
+            뜨기는한것 = 자리
+    # 잘 도는 것이 없으면 「뜨기라도 한 것」 을 쓴다. 하나도 못 띄웠으면 없는 것이다 —
+    # ✓ 라 해 놓고 정작 못 돌리는 것이 이번 사고였다.
+    _찾은것[이름] = 뜨기는한것
+    return 뜨기는한것
 
 
 # ── 1. 파이썬 자리와 부품 ───────────────────────────────────
