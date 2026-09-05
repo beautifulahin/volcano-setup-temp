@@ -45,9 +45,16 @@ function Fail($msg,$todo) {
   Write-Host ("      할 일: " + $todo) -ForegroundColor Red
   Write-Host ("  자세한 기록: " + $LOG)
   Log "FAIL $msg :: $todo"
-  Read-Host "  엔터를 누르면 창이 닫힙니다"
+  Hold "  엔터를 누르면 창이 닫힙니다"
   exit 1
 }
+# 앱이 제 창 안에서 자식으로 돌릴 때는 키보드가 없다.
+# 그때 Read-Host 를 하면 그 자리에서 죽고 「코드 1」만 남는다(실측 2026-09-05).
+function Hold($msg) {
+  if ($env:VOLCANO_APP -eq '1') { return }   # 앱이 돌리는 중 — 기다리지 않는다
+  try { Read-Host $msg | Out-Null } catch { }
+}
+
 function Fetch($url,$dir) {
   Invoke-WebRequest -Uri $url -OutFile ($dir + '.내려받는중') -UseBasicParsing -TimeoutSec 1800
   Move-Item -Force ($dir + '.내려받는중') $dir
@@ -357,7 +364,7 @@ if (Test-Path $(Quote $checkPy)) { & $(Quote $PY) $(Quote $checkPy) }
 Set-Location $(Quote $JOBS)
 claude
 Write-Host ''
-try { Read-Host '  엔터를 누르면 창이 닫힙니다' | Out-Null } catch {}
+Hold "  엔터를 누르면 창이 닫힙니다"
 "@
 WriteBatPair $launcherBat $launcherPs -Hidden
 Ok $launcherBat
@@ -382,7 +389,7 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 `$env:PATH = $(Quote $BIN) + ';' + (Join-Path `$env:USERPROFILE '.local\bin') + ';' + `$env:PATH
 & $(Quote $PY) $(Quote $finishPy)
 Write-Host ''
-try { Read-Host '  엔터를 누르면 창이 닫힙니다' | Out-Null } catch {}
+Hold "  엔터를 누르면 창이 닫힙니다"
 "@
   WriteBatPair $finishBat $finishPs
   Say ""
