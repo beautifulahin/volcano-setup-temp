@@ -212,8 +212,29 @@ if (Have 'uv') { Skip 'uv' }
 else {
   try {
     & ([scriptblock]::Create((Invoke-WebRequest -Uri 'https://astral.sh/uv/install.ps1' -UseBasicParsing).Content)) *>> $LOG
-  } catch { Fail "uv 를 설치하지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
-  if (-not (Have 'uv')) { Fail "uv 를 찾지 못합니다" "PowerShell 을 닫았다 열고 설치 명령을 한 번 더 돌려 주세요" }
+  } catch {
+    # 길이 하나뿐이면 그 길이 막힐 때 통째로 죽는다. 까닭을 남기고 다른 길로 간다.
+    Log ("uv 설치 스크립트 실패: " + $_.Exception.Message)
+    Write-Host ("      · 첫 번째 길이 막혔습니다 (" + $_.Exception.Message + ")") -ForegroundColor DarkGray
+    Write-Host '      · 다른 길로 받아 봅니다...'
+  }
+  if (-not (Have 'uv')) {
+    # 두 번째 길 — 깃허브 릴리스에서 실행파일만 곧장 받는다(스크립트를 안 돌린다).
+    try {
+      $uvZip = Join-Path $VOL 'uv.zip'
+      $uvUrl = 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip'
+      Invoke-WebRequest -Uri $uvUrl -OutFile $uvZip -UseBasicParsing -TimeoutSec 600
+      Expand-Archive -Path $uvZip -DestinationPath $BIN -Force
+      Remove-Item $uvZip -ErrorAction SilentlyContinue
+      Log 'uv 를 깃허브 릴리스에서 받았다'
+    } catch {
+      Log ("uv 깃허브 길도 실패: " + $_.Exception.Message)
+    }
+  }
+  if (-not (Have 'uv')) {
+    Fail "uv 를 받지 못했습니다 (두 길 다 막혔습니다)" ("회사망이나 백신이 astral.sh / github.com 을 막고 있을 수 있습니다. " +
+      "자세한 까닭은 이 기록에 있습니다: " + $LOG)
+  }
   Ok 'uv'
 }
 & uv python install 3.12 *>> $LOG
