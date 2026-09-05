@@ -383,7 +383,9 @@ else {
     $vsExe = Join-Path $vHome 'vscode-setup.exe'
     Invoke-WebRequest -Uri $vsUrl -OutFile $vsExe -UseBasicParsing -TimeoutSec 1800
     # 조용히 깔고, 바로가기·PATH 는 넣되 다 끝나고 저절로 열리지는 않게 한다.
-    $vsArgs = '/VERYSILENT /NORESTART /MERGETASKS=!runcode,addcontextmenufiles,addtopath'
+    # desktopicon 을 넣어야 바탕화면에 아이콘이 생긴다. 없으면 껐을 때 못 찾는다
+    # (실측 2026-09-05 — 「끄니까 vscode 가 없다」).
+    $vsArgs = '/VERYSILENT /NORESTART /MERGETASKS=desktopicon,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath,!runcode'
     Start-Process -FilePath $vsExe -ArgumentList $vsArgs -Wait
     Remove-Item $vsExe -ErrorAction SilentlyContinue
     foreach ($c in @(
@@ -485,6 +487,15 @@ if ($env:VOLCANO_APP -eq '1' -and $env:VOLCANO_APP_PATH -and (Test-Path $env:VOL
     }
   }
 } else {
+# 바로가기가 쓸 VS Code 자리. 없으면 빈 값이라 검은 창에서 그냥 claude 를 연다.
+$codeForLauncher = ''
+if ($script:codePath) { $codeForLauncher = $script:codePath }
+else {
+  foreach ($c in @((Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\bin\code.cmd'),
+                   'C:\Program Files\Microsoft VS Code\bin\code.cmd')) {
+    if ($c -and (Test-Path $c)) { $codeForLauncher = $c; break }
+  }
+}
 $launcherBat = Join-Path $desktop '볼케이노.bat'
 $checkPy = Join-Path $setupDir '점검.py'
 # 한글이 든 자리·안내는 짝 .ps1 에 담고, 바탕화면에는 ASCII .bat 만 보이게 한다.
@@ -497,6 +508,15 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 `$env:PATH = $(Quote $BIN) + ';' + `$env:PATH
 if (Test-Path $(Quote $checkPy)) { & $(Quote $PY) $(Quote $checkPy) }
 Set-Location $(Quote $JOBS)
+# VS Code 가 있으면 거기서 연다 — 사용자 지시 2026-09-05.
+`$codeCli = $(Quote $codeForLauncher)
+if (`$codeCli -and (`$codeCli -eq 'code' -or (Test-Path `$codeCli))) {
+  Write-Host '  VS Code 로 볼케이노를 엽니다...'
+  Write-Host '   · VS Code 가 열리면 Claude Code 를 켜세요 (Ctrl+Esc 또는 왼쪽 Claude 아이콘).'
+  try { & `$codeCli $(Quote $JOBS) } catch { Write-Host '  ! VS Code 를 열지 못했습니다.' }
+  Write-Host ''
+  Write-Host '  이 검은 창에서 바로 쓰시려면 아래처럼 claude 를 치셔도 됩니다.'
+}
 claude
 Write-Host ''
 Hold "  엔터를 누르면 창이 닫힙니다"
