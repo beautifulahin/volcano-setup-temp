@@ -49,6 +49,8 @@
   h2{font-size:20px; margin:26px 0 10px; font-weight:700}
   ol.할일{font-size:17px; margin:0; padding-left:22px}
   ol.할일 li{margin:10px 0}
+  .받음{background:var(--초록); color:#fff; border-radius:12px; padding:14px 18px;
+        margin:18px 0 4px; font-size:18px; font-weight:700}
   .귀띔{background:var(--바탕); border-left:3px solid var(--강조); padding:12px 16px;
         border-radius:0 8px 8px 0; margin-top:14px; font-size:16px; color:var(--흐린글)}
   .바꾸기{margin-top:18px; font-size:15px; color:var(--흐린글); text-align:center}
@@ -78,14 +80,25 @@
         설치 파일 받기
         <span>setup.bat · 이 파일 하나면 됩니다</span>
       </a>
-      <h2>받은 다음</h2>
-      <ol class="할일">
-        <li>내려받기 폴더에서 <b>setup.bat</b> 을 <b>두 번</b> 누르세요.</li>
-        <li>파란 경고창이 뜨면 <b>[추가 정보]</b> → <b>[실행]</b> 을 누르세요.</li>
-        <li>검은 창에서 저절로 진행됩니다. <b>아무것도 안 누르고 기다리시면</b> 됩니다.</li>
-        <li>끝날 때쯤 로그인 창이 한 번 열립니다. 메일로 로그인하시면 됩니다.</li>
-      </ol>
-      <p class="귀띔">파일이 하나뿐입니다. 옆에 다른 것을 같이 둘 필요가 없습니다.</p>
+      <div id="받은뒤" hidden>
+        <p class="받음">받았습니다. 이제 <b>딱 한 번</b>만 더 누르시면 끝입니다.</p>
+        <ol class="할일">
+          <li>브라우저 <b>오른쪽 위 내려받기 표시</b>(↓)를 누르면 <b>setup.bat</b> 이 보입니다.
+              그걸 <b>두 번</b> 누르세요. (내려받기 폴더에서 찾으셔도 됩니다.)</li>
+          <li>「이 파일은 위험할 수 있다」고 하면 <b>[유지]</b> 를 누르세요.</li>
+          <li>파란 경고창이 뜨면 <b>[추가 정보]</b> → <b>[실행]</b>.</li>
+        </ol>
+        <p class="귀띔">그다음은 <b>손댈 것이 없습니다.</b> 검은 창이 알아서 10~20분 동안 다 깝니다.
+        끝날 때쯤 로그인 창이 한 번 열리는데, 메일로 로그인만 하시면 됩니다.</p>
+      </div>
+      <div id="받기전">
+        <h2>누르면 이렇게 됩니다</h2>
+        <ol class="할일">
+          <li>파일 하나(<b>setup.bat</b>)가 내려받아집니다.</li>
+          <li>그걸 두 번 누르면 <b>나머지는 전부 저절로</b> 진행됩니다.</li>
+        </ol>
+        <p class="귀띔">옆에 다른 파일을 같이 둘 필요가 없습니다. 이 하나면 됩니다.</p>
+      </div>
     </div>
 
     <!-- 맥 -->
@@ -97,6 +110,7 @@
         <code class="명령" id="맥명령">준비 중…</code>
         <button class="복사" id="복사단추" type="button">복사</button>
       </div>
+      <p class="받음" id="맥복사됨" hidden>복사했습니다. 이제 아래 네 줄만 하시면 끝입니다.</p>
       <h2>복사한 다음</h2>
       <ol class="할일">
         <li><b>터미널</b>을 여세요. <b>⌘ + 스페이스</b> → <b>터미널</b> 이라고 치고 엔터.</li>
@@ -162,7 +176,19 @@ function 그리기(){
   document.getElementById("맥칸").hidden     = (지금 !== "mac");
   document.getElementById("받기단추").href   = 받는곳 + "/setup.bat";
   document.getElementById("맥명령").textContent = 맥한줄;
+  document.getElementById("받기전").hidden = false;
+  document.getElementById("받은뒤").hidden = true;
+  document.getElementById("맥복사됨").hidden = true;
 }
+document.getElementById("받기단추").addEventListener("click", function(){
+  // 브라우저는 남의 컴퓨터에서 프로그램을 못 돌린다(보안). 받는 데까지가 끝이라,
+  // 받은 **다음에 할 일**을 그 자리에서 크게 짚어 준다.
+  document.getElementById("받기전").hidden = true;
+  document.getElementById("받은뒤").hidden = false;
+});
+document.getElementById("복사단추").addEventListener("click", function(){
+  document.getElementById("맥복사됨").hidden = false;
+});
 document.getElementById("바꾸기").addEventListener("click", function(){
   지금 = (지금 === "mac") ? "win" : "mac";
   그리기();
