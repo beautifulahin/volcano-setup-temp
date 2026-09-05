@@ -220,6 +220,12 @@ def 찾기(이름):
                 pass
         if 적힌것 and os.path.exists(적힌것):
             return 적힌것
+        # 클로드는 사용자 홈의 .local/bin 에 깔린다(윈도우 실측).
+        홈 = os.path.expanduser("~")
+        for 끝 in ("claude.cmd", "claude.exe", "claude.bat", "claude"):
+            자리 = os.path.join(홈, ".local", "bin", 끝)
+            if os.path.exists(자리):
+                return 자리
     # ── 아래는 예전 길 ──
 
     """PATH·볼케이노 폴더에서 찾되 **실제로 돌아가는 것**만 돌려준다. 없으면 None."""
