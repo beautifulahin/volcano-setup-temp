@@ -38,7 +38,7 @@ foreach ($dir in @($vHome,$BIN,$KEYS,$RUNNER,$setupDir,$JOBS)) { New-Item -ItemT
 
 function Log($msg) { try { Add-Content -Path $LOG -Value ("{0} {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg) -Encoding UTF8 } catch {} }
 function Say($msg)   { Write-Host $msg; Log $msg }
-function Step($num,$msg) { Write-Host ""; Write-Host ("[{0}/10] {1}" -f $num,$msg) -ForegroundColor Cyan; Log "[$num/10] $msg" }
+function Step($num,$msg) { Write-Host ""; Write-Host ("[{0}/11] {1}" -f $num,$msg) -ForegroundColor Cyan; Log "[$num/11] $msg" }
 function Ok($msg) { Write-Host ("  OK  " + $msg) -ForegroundColor Green; Log "OK $msg" }
 function Skip($msg) { Write-Host ("   ·  " + $msg + " — 이미 있어 건너뜁니다"); Log "SKIP $msg" }
 function Warn($msg,$todo) { Write-Host ("  !   " + $msg) -ForegroundColor Yellow; Write-Host ("      -> " + $todo) -ForegroundColor Yellow; Log "WARN $msg :: $todo" }
@@ -340,6 +340,7 @@ FetchRunner $runnerUrl $runnerSha
 
 # ── 7. Claude Code ──────────────────────────────────────────
 $script:claudePath = $null
+$script:codePath = $null
 Step 7 "Claude Code 준비"
 if (Have 'claude') { Skip 'claude' }
 else {
@@ -365,7 +366,55 @@ else {
 }
 
 # ── 8. 설정 적기 ────────────────────────────────────────────
-Step 8 "설정 적기"
+# ── 7-2. VS Code ────────────────────────────────────────────
+# 사용자 지시 2026-09-05: 「다 설치되면 vscode 를 설치되게 해줘」.
+# 없어도 볼케이노는 돈다 — 그래서 실패해도 설치를 멈추지 않는다(Warn 으로 넘긴다).
+Step 8 "VS Code 준비"
+$codeFound = $null
+foreach ($c in @(
+  (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\bin\code.cmd'),
+  'C:\Program Files\Microsoft VS Code\bin\code.cmd')) {
+  if ($c -and (Test-Path $c)) { $codeFound = $c; break }
+}
+if ($codeFound -or (Have 'code')) { Skip 'VS Code' }
+else {
+  try {
+    $vsUrl = 'https://update.code.visualstudio.com/latest/win32-x64-user/stable'
+    $vsExe = Join-Path $vHome 'vscode-setup.exe'
+    Invoke-WebRequest -Uri $vsUrl -OutFile $vsExe -UseBasicParsing -TimeoutSec 1800
+    # 조용히 깔고, 바로가기·PATH 는 넣되 다 끝나고 저절로 열리지는 않게 한다.
+    $vsArgs = '/VERYSILENT /NORESTART /MERGETASKS=!runcode,addcontextmenufiles,addtopath'
+    Start-Process -FilePath $vsExe -ArgumentList $vsArgs -Wait
+    Remove-Item $vsExe -ErrorAction SilentlyContinue
+    foreach ($c in @(
+      (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\bin\code.cmd'),
+      'C:\Program Files\Microsoft VS Code\bin\code.cmd')) {
+      if ($c -and (Test-Path $c)) { $codeFound = $c; break }
+    }
+    if ($codeFound -or (Have 'code')) { Ok 'VS Code' }
+    else { Warn "VS Code 를 설치하지 못했습니다" "없어도 볼케이노는 돌아갑니다. 나중에 code.visualstudio.com 에서 받으셔도 됩니다" }
+  } catch {
+    Log ("VS Code 실패: " + $_)
+    Warn "VS Code 를 설치하지 못했습니다" "없어도 볼케이노는 돌아갑니다. 나중에 code.visualstudio.com 에서 받으셔도 됩니다"
+  }
+}
+
+# VS Code 가 있으면 Claude Code 확장을 넣는다 — 그래야 VS Code 안에서 바로 쓴다.
+$codeCli = $codeFound
+if (-not $codeCli -and (Have 'code')) { $codeCli = 'code' }
+if ($codeCli) {
+  try {
+    & $codeCli --install-extension anthropic.claude-code --force *>> $LOG
+    if ($LASTEXITCODE -eq 0) { Ok 'VS Code 의 Claude Code 확장' }
+    else { Warn "VS Code 확장을 넣지 못했습니다" "VS Code 를 열고 확장에서 Claude Code 를 검색해 설치하시면 됩니다" }
+  } catch {
+    Log ("VS Code 확장 실패: " + $_)
+    Warn "VS Code 확장을 넣지 못했습니다" "VS Code 를 열고 확장에서 Claude Code 를 검색해 설치하시면 됩니다"
+  }
+  $script:codePath = $codeCli
+}
+
+Step 9 "설정 적기"
 # 클로드코드 자리를 적어 둔다 — 로그인 창이 이것을 쓴다.
 if (-not $script:claudePath) {
   # 자리마다 밑둥이 비어 있을 수 있다(맥에는 APPDATA 가 없다). 비면 건너뛴다.
@@ -390,6 +439,7 @@ AddEnvLine 'VOLCANO_PY'     "VOLCANO_PY=$PY"
 AddEnvLine 'VOLCANO_RUNNER' "VOLCANO_RUNNER=$RUNNER"
 AddEnvLine 'VOLCANO_JOBS'   "VOLCANO_JOBS=$JOBS"
 if ($script:claudePath) { AddEnvLine 'VOLCANO_CLAUDE' "VOLCANO_CLAUDE=$($script:claudePath)" }
+if ($script:codePath)   { AddEnvLine 'VOLCANO_CODE'   "VOLCANO_CODE=$($script:codePath)" }
 
 foreach ($pair in @(@('VOLCANO_HOME',$vHome), @('VOLCANO_PY',$PY), @('VOLCANO_RUNNER',$RUNNER), @('VOLCANO_JOBS',$JOBS))) {
   if (-not [Environment]::GetEnvironmentVariable($pair[0],'User')) {
@@ -407,7 +457,7 @@ try { FetchPkg '점검.py' (Join-Path $setupDir '점검.py') } catch { Warn "점
 try { FetchPkg '설치마무리.py' (Join-Path $setupDir '설치마무리.py') } catch { Warn "설치마무리.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
 
 # ── 9. 바탕화면 바로가기 ────────────────────────────────────
-Step 9 "바탕화면 바로가기 만들기"
+Step 10 "바탕화면 바로가기 만들기"
 # 바탕화면. 시험(VOLCANO_DEST)일 때는 진짜 바탕화면에 아무것도 놓지 않는다.
 if ($env:VOLCANO_DEST) {
   $desktop = Join-Path $DEST 'Desktop'
@@ -457,7 +507,7 @@ Ok $launcherBat
 
 # ── 10. 마무리 (이 창에서 그대로) ───────────────────────────
 # 새 창을 열지 않는다. 묻는 것은 이 콘솔에서 그대로 받는다.
-Step 10 "마무리 — 로그인과 열쇠 넣기"
+Step 11 "마무리 — 로그인과 열쇠 넣기"
 $finishPy = Join-Path $setupDir '설치마무리.py'
 $finishBat = Join-Path $setupDir '마무리.bat'
 if ($env:VOLCANO_APP -eq '1') {

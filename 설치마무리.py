@@ -757,18 +757,47 @@ def 하기():
     print("  바탕화면 아이콘은 VS Code 없이 바로 쓰실 때 쓰세요.")
     print()
 
-    # 승인이 아직이면 바로 열어 준다 — 사람이 따로 찾아 들어갈 일이 없게.
+    # ★ 여기서 바로 볼케이노를 연다 — 앱 창을 따로 찾아 들어갈 일이 없게.
+    #   (사용자 지시 2026-09-05: 「어플 찾아 들어가야 해서 귀찮다」)
     claude = 찾기("claude")
-    if claude and 사람있나() and 연결됐나() is not True:
-        print("  이제 볼케이노를 엽니다.")
-        print("   · 열리면  /mcp  → volcano → Authenticate 를 눌러 메일을 적으세요.")
-        물음("  준비되면 엔터를 누르세요… ")
-        try:
-            사람실행([claude], cwd=str(작업장()))
-        except Exception:
-            print("  ! 열지 못했습니다. 바탕화면의 「볼케이노」를 두 번 누르세요.")
-    else:
+    if not claude:
+        print("  ! Claude Code 를 찾지 못했습니다.")
         물음("  이 창을 닫으려면 엔터를 누르세요… ")
+        return 코드
+    if not 사람있나():
+        물음("  이 창을 닫으려면 엔터를 누르세요… ")
+        return 코드
+
+    승인됨 = 연결됐나() is True
+
+    # VS Code 가 깔려 있으면 작업 폴더를 열어 둔다 — 거기서도 바로 쓸 수 있게.
+    코드 = os.environ.get("VOLCANO_CODE") or ""
+    if not 코드:
+        try:
+            for 줄 in io.open(집 / "env", encoding="utf-8"):
+                if 줄.startswith("VOLCANO_CODE="):
+                    코드 = 줄.split("=", 1)[1].strip(); break
+        except Exception:
+            pass
+    if 코드 and (os.path.exists(코드) or 코드 == "code"):
+        if 예아니오("  VS Code 로 작업 폴더를 열어 둘까요?", True):
+            try:
+                subprocess.Popen([코드, str(작업장())],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print("  ✓ VS Code 를 열었습니다. 거기서 Claude Code 를 열어도 볼케이노가 붙어 있습니다.")
+            except Exception:
+                print("  ! VS Code 를 열지 못했습니다. 직접 열어 작업 폴더를 여시면 됩니다.")
+
+    print("  이제 볼케이노를 엽니다.")
+    if not 승인됨:
+        print("   · 열리면  /mcp  → volcano → Authenticate 를 눌러 메일을 적으세요.")
+    else:
+        print("   · 만들고 싶은 것을 그냥 말로 적으면 됩니다.")
+    물음("  준비되면 엔터를 누르세요… ")
+    try:
+        사람실행([claude], cwd=str(작업장()))
+    except Exception:
+        print("  ! 열지 못했습니다. 바탕화면의 「볼케이노」를 두 번 누르세요.")
     return 코드
 
 

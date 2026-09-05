@@ -86,8 +86,41 @@ try {
   if ($env:VOLCANO_NO_RUN -eq '1') {
     Write-Host '[4/4] 놓기만 했습니다 (VOLCANO_NO_RUN=1)'
   } else {
-    Write-Host '[4/4] 실행합니다...'
-    Start-Process -FilePath $appExe -WorkingDirectory $destDir
+    # ★ 앱 창을 따로 찾아 들어가지 않게, **이 창에서 그대로 이어서** 한다.
+    #   (사용자 지시 2026-09-05: 「어플 찾아 들어가야 해서 귀찮다」)
+    #   설치본체를 VOLCANO_APP 없이 돌리면 10단계가 이 창에서 로그인·승인·열쇠까지
+    #   묻고, 끝나면 클로드코드를 그 자리에서 연다. 앱은 나중에 설정을 볼 때 쓴다.
+    Write-Host '[4/4] 이어서 설치합니다...'
+    Write-Host ''
+    $vHomeDir = if ($env:VOLCANO_DEST) { Join-Path $env:VOLCANO_DEST 'volcano' }
+                else { Join-Path $env:LOCALAPPDATA 'volcano' }
+    $bodyPs1  = Join-Path $vHomeDir '설치기\설치본체.ps1'
+    $bundled  = Join-Path $vHomeDir '앱동봉\설치본체.ps1'
+    if (-not (Test-Path $bodyPs1)) { $bodyPs1 = $bundled }
+    if (Test-Path $bodyPs1) {
+      $env:VOLCANO_APP = ''      # 이 창이 사람 창이다 — 여기서 묻는다
+      & $bodyPs1
+    } else {
+      # 처음이라 설치본체가 없다. 앱을 거치지 말고 여기서 직접 받는다.
+      Write-Host '  · 처음이라 준비물을 먼저 받습니다...'
+      $setupDir = Join-Path $vHomeDir '설치기'
+      New-Item -ItemType Directory -Force -Path $setupDir | Out-Null
+      $ok = $false
+      foreach ($nm in @('설치본체.ps1','설치마무리.py','점검.py','설정.json')) {
+        try {
+          $u = 'https://beautifulahin.github.io/volcano-setup-temp'.TrimEnd('/') + '/' + [uri]::EscapeDataString($nm)
+          Invoke-WebRequest -Uri $u -OutFile (Join-Path $setupDir $nm) -UseBasicParsing -TimeoutSec 120
+          if ($nm -eq '설치본체.ps1') { $ok = $true }
+        } catch { Write-Host ('  ! ' + $nm + ' 을 받지 못했습니다') }
+      }
+      if ($ok) {
+        $env:VOLCANO_APP = ''
+        & (Join-Path $setupDir '설치본체.ps1')
+      } else {
+        Write-Host '  ! 준비물을 받지 못해 앱으로 넘깁니다.'
+        Start-Process -FilePath $appExe -WorkingDirectory $destDir
+      }
+    }
   }
 } catch {
   Write-Host ''
