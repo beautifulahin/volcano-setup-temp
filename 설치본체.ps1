@@ -131,6 +131,13 @@ function WriteUtf8($dir, $msg) {
 }
 function WriteBatPair($batPath, $psText, [switch]$Hidden) {
   $pair = [IO.Path]::ChangeExtension($batPath, '.ps1')
+  # ★ 숨김 파일은 그냥 덮어쓸 수 없다 — 두 번째 설치부터 「Access to the path … is denied」
+  #   로 죽는다(실측 2026-09-05). 쓰기 전에 숨김·읽기전용 표를 먼저 뗀다.
+  foreach ($f in @($pair, $batPath)) {
+    if (Test-Path $f) {
+      try { (Get-Item $f -Force).Attributes = 'Normal' } catch { }
+    }
+  }
   WriteUtf8 $pair $psText
   if ($Hidden) { try { (Get-Item $pair -Force).Attributes = 'Hidden' } catch {} }
   $batShell = @'
@@ -273,7 +280,8 @@ else {
 }
 $uvOk = RunUv @('python','install','3.12')
 if (-not $uvOk) { Fail "파이썬 3.12 를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
-if ((Test-Path $PY) -or (Test-Path $PYalt)) { Skip "파이썬 자리 $VENV" }
+if (Test-Path $PY) { Skip "파이썬 자리 $VENV" }
+elseif (Test-Path $PYalt) { $PY = $PYalt; Skip "파이썬 자리 $VENV" }
 else {
   RunUv @('venv','--seed','--python','3.12',$VENV) | Out-Null
   if (Test-Path $PYalt) { $PY = $PYalt }
