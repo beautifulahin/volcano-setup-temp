@@ -24,7 +24,9 @@ $KEYS  = Join-Path $vHome 'keys'
 $RUNNER= Join-Path $vHome 'runner'
 $setupDir = Join-Path $vHome '설치기'
 $VENV  = Join-Path $vHome 'venv'
+# 맥·리눅스에서 흉내 낼 때는 venv/bin/python3 에 생긴다. 시험이 여기서 헛되이 죽지 않게 둘 다 본다.
 $PY    = Join-Path $VENV 'Scripts\python.exe'
+$PYalt = Join-Path $VENV 'bin/python3'
 # 작업장. 시험(VOLCANO_DEST)일 때는 진짜 홈이 아니라 시험 자리 밑에 만든다.
 $JOBS  = if ($env:VOLCANO_JOBS_DIR) { $env:VOLCANO_JOBS_DIR }
          elseif ($env:VOLCANO_DEST) { Join-Path $DEST 'volcano_jobs' }
@@ -239,9 +241,10 @@ else {
 }
 & uv python install 3.12 *>> $LOG
 if ($LASTEXITCODE -ne 0) { Fail "파이썬 3.12 를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
-if (Test-Path $PY) { Skip "파이썬 자리 $VENV" }
+if ((Test-Path $PY) -or (Test-Path $PYalt)) { Skip "파이썬 자리 $VENV" }
 else {
   & uv venv --seed --python 3.12 $VENV *>> $LOG
+  if (Test-Path $PYalt) { $PY = $PYalt }
   if (-not (Test-Path $PY)) { Fail "파이썬 자리를 만들지 못했습니다" "$VENV 폴더 이름을 바꾼 뒤 다시 돌려 주세요" }
   Ok "파이썬 자리 $VENV"
 }
