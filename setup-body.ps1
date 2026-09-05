@@ -83,4 +83,15 @@ try {
 
 $env:VOLCANO_APP = ''      # 이 창이 사람 창이다 — 여기서 묻는다
 & $bodyPs1
-exit $LASTEXITCODE
+
+# ★ $LASTEXITCODE 를 그대로 넘기지 않는다. 설치본체 안에서 마지막으로 돈 외부 프로그램
+#   (설치마무리.py 등)의 종료코드가 새어 나와, 다 깔고도 setup.bat 이 「설치를 끝내지 못했다」는
+#   빨간 글을 띄우고 사람이 처음부터 다시 깔게 만든다. 무엇이 됐는지는 설치본체가 제 화면에서 말한다.
+#   다만 「정말로 안 깔린 것」은 짚어 준다 — 종료코드가 아니라 **나온 것**으로 본다.
+$pyCheck = Join-Path $vHome 'venv\Scripts\python.exe'
+if (-not (Test-Path $pyCheck)) {
+  Write-Host ''
+  Write-Host '  ! 파이썬이 아직 안 깔렸습니다 — 위 화면의 빨간 줄을 봐 주세요.'
+  Write-Host '    이 파일(setup.bat)을 한 번 더 두 번 누르시면 됩니다. 이미 된 것은 건너뜁니다.'
+}
+exit 0

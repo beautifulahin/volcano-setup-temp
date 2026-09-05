@@ -38,6 +38,11 @@ if not exist "%BOOT%" goto nonet
 
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%BOOT%"
 if errorlevel 1 goto failed
+
+rem The window must not vanish before the last message is read.
+rem A .bat window closes the moment the batch ends, so hold it here.
+echo.
+pause
 exit /b 0
 
 :nonet
