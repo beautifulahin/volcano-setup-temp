@@ -103,46 +103,46 @@
 
     <!-- 맥 -->
     <div id="맥칸" hidden>
-      <a class="큰단추" id="맥받기단추" href="volcano-mac.zip" download>
-        설치 파일 받기
-        <span>volcano-mac.zip · 두 번 누르면 저절로 깔립니다</span>
+      <p style="font-size:17px;margin:0 0 6px">
+        맥은 <b>아래 단추를 누르고, 터미널에 붙여넣기</b> 하시면 됩니다. 세 걸음입니다.</p>
+      <p class="귀띔" style="margin:0 0 16px">
+        왜 파일로 안 주냐면 — 애플이 <b>서명 없는 파일은 아예 못 열게</b> 막습니다.
+        두 번 눌러도 「휴지통으로 이동 / 완료」 만 뜨고 끝납니다.
+        이 길은 <b>경고가 하나도 안 뜹니다.</b></p>
+
+      <a class="큰단추" id="맥복사단추" href="javascript:void(0)">
+        ① 설치 명령 복사하기
+        <span>누르면 복사됩니다 — 외우실 필요 없습니다</span>
       </a>
 
       <div id="맥받은뒤" hidden>
-        <p class="받음">받았습니다. 아래 <b>네 번</b>만 누르시면 끝입니다. 타이핑할 것은 없습니다.</p>
+        <p class="받음">복사했습니다. 이제 두 걸음 남았습니다.</p>
         <ol class="할일">
-          <li>받은 <b>volcano-mac.zip</b> 을 <b>두 번</b> 누르세요. 압축이 풀리면서
-              <b>volcano-setup.command</b> 가 옆에 생깁니다.</li>
-          <li>그 <b>volcano-setup.command</b> 를 <b>오른쪽 클릭</b> 하세요.
-              (마우스 오른쪽 단추가 없으면 <b>Control</b> 을 누른 채 클릭)</li>
-          <li>나온 목록에서 <b>[열기]</b> 를 누르세요. <u>두 번 누르지 말고 꼭 오른쪽 클릭으로</u> 여셔야 합니다.</li>
-          <li>「확인되지 않은 개발자」 경고가 뜨면 <b>[열기]</b> 를 한 번 더 누르세요.</li>
+          <li><b>터미널을 엽니다.</b> 둘 중 편한 쪽으로 하세요.
+            <ul style="margin:8px 0 0;padding-left:20px">
+              <li><b>키보드로</b> — <b>Command(⌘) + 스페이스</b> 누르고 <b>terminal</b> 치고 <b>엔터</b></li>
+              <li><b>마우스로</b> — 바탕화면 아무 데나 한 번 클릭 → 화면 맨 위 <b>[이동]</b> 메뉴 →
+                  <b>[유틸리티]</b> → <b>터미널</b> 을 두 번 누르기</li>
+            </ul>
+          </li>
+          <li>글자만 있는 <b>빈 창</b>이 뜨면 <b>Command(⌘) + V</b> 로 붙여넣고 <b>엔터</b>.</li>
         </ol>
-        <p class="귀띔"><b>터미널(검은 창)이 저절로 열리고</b> 거기서 알아서 다 깝니다.
-        그다음은 손댈 것이 없습니다. 끝날 때쯤 로그인 창이 한 번 열리는데, 메일로 로그인만 하시면 됩니다.<br>
-        다음부터는 경고가 안 뜹니다 — 처음 한 번뿐입니다.</p>
+        <p class="귀띔">그다음은 <b>손댈 것이 없습니다.</b> 10~20분 동안 알아서 다 깝니다.
+        끝날 때쯤 로그인 창이 한 번 열리는데, 메일로 로그인만 하시면 됩니다.</p>
+        <p class="설명" style="margin:14px 0 6px;font-size:16px">붙여넣을 것은 이 한 줄입니다. 복사가 풀렸으면 여기서 다시 누르세요.</p>
+        <div class="명령칸">
+          <code class="명령" id="맥명령">준비 중…</code>
+          <button class="복사" id="복사단추" type="button">다시 복사</button>
+        </div>
       </div>
 
       <div id="맥받기전">
         <h2>누르면 이렇게 됩니다</h2>
         <ol class="할일">
-          <li>꾸러미 하나(<b>volcano-mac.zip</b>)가 내려받아집니다.</li>
-          <li>두 번 눌러 풀고, 나온 파일을 <b>오른쪽 클릭 → 열기</b> 하면
-              <b>터미널이 저절로 열리면서</b> 나머지가 전부 진행됩니다.</li>
+          <li>설치 명령 한 줄이 <b>복사</b>됩니다. 외우거나 받아 적을 것 없습니다.</li>
+          <li>터미널을 열고 <b>붙여넣기(⌘V) + 엔터</b> 하면 나머지가 전부 저절로 진행됩니다.</li>
         </ol>
-        <p class="귀띔">터미널을 직접 찾아 열 필요 없습니다. 타이핑도 없습니다.</p>
       </div>
-
-      <details>
-        <summary>위 방법이 안 되면 — 한 줄 붙여넣기</summary>
-        <p class="설명" style="font-size:16px;margin:12px 0">
-          터미널을 직접 여실 수 있는 분만 쓰세요.
-          <b>⌘ + 스페이스</b> → <b>터미널</b> 이라고 치고 엔터 → 아래를 붙여넣고 엔터.</p>
-        <div class="명령칸">
-          <code class="명령" id="맥명령">준비 중…</code>
-          <button class="복사" id="복사단추" type="button">복사</button>
-        </div>
-      </details>
     </div>
 
     <p class="바꾸기">잘못 잡혔나요? <a id="바꾸기">다른 쪽 보기</a></p>
@@ -200,7 +200,6 @@ function 그리기(){
   document.getElementById("윈도우칸").hidden = (지금 !== "win");
   document.getElementById("맥칸").hidden     = (지금 !== "mac");
   document.getElementById("받기단추").href   = 받는곳 + "/setup.bat";
-  document.getElementById("맥받기단추").href = 받는곳 + "/volcano-mac.zip";
   document.getElementById("맥명령").textContent = 맥한줄;
   document.getElementById("받기전").hidden = false;
   document.getElementById("받은뒤").hidden = true;
@@ -213,7 +212,9 @@ document.getElementById("받기단추").addEventListener("click", function(){
   document.getElementById("받기전").hidden = true;
   document.getElementById("받은뒤").hidden = false;
 });
-document.getElementById("맥받기단추").addEventListener("click", function(){
+// 큰 단추도 복사 단추다 — 누르면 복사하고 다음 할 일을 편다.
+document.getElementById("맥복사단추").addEventListener("click", function(){
+  베끼기(맥한줄);
   document.getElementById("맥받기전").hidden = true;
   document.getElementById("맥받은뒤").hidden = false;
 });
@@ -221,18 +222,22 @@ document.getElementById("바꾸기").addEventListener("click", function(){
   지금 = (지금 === "mac") ? "win" : "mac";
   그리기();
 });
-document.getElementById("복사단추").addEventListener("click", async function(){
-  const 단추 = this;
+// 파일로 열려도(클립보드 권한이 없는 자리) 되게 두 벌로 베낀다.
+async function 베끼기(글){
   try {
-    await navigator.clipboard.writeText(맥한줄);
+    await navigator.clipboard.writeText(글);
   } catch (e) {
     const 임시 = document.createElement("textarea");
-    임시.value = 맥한줄; document.body.appendChild(임시); 임시.select();
+    임시.value = 글; document.body.appendChild(임시); 임시.select();
     try { document.execCommand("copy"); } catch (e2) {}
     document.body.removeChild(임시);
   }
+}
+document.getElementById("복사단추").addEventListener("click", async function(){
+  const 단추 = this;
+  await 베끼기(맥한줄);
   단추.textContent = "복사됨"; 단추.classList.add("됨");
-  setTimeout(function(){ 단추.textContent = "복사"; 단추.classList.remove("됨"); }, 2000);
+  setTimeout(function(){ 단추.textContent = "다시 복사"; 단추.classList.remove("됨"); }, 2000);
 });
 그리기();
 </script>
