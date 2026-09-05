@@ -103,21 +103,46 @@
 
     <!-- 맥 -->
     <div id="맥칸" hidden>
-      <p style="font-size:17px;margin:0 0 14px">
-        맥은 <b>아래 한 줄</b>을 복사해서 터미널에 붙여넣으시면 됩니다.
-        (파일로 받으면 맥이 「열 수 없음」 경고를 띄우기 때문에, 이 길이 제일 깔끔합니다.)</p>
-      <div class="명령칸">
-        <code class="명령" id="맥명령">준비 중…</code>
-        <button class="복사" id="복사단추" type="button">복사</button>
+      <a class="큰단추" id="맥받기단추" href="volcano-mac.zip" download>
+        설치 파일 받기
+        <span>volcano-mac.zip · 두 번 누르면 저절로 깔립니다</span>
+      </a>
+
+      <div id="맥받은뒤" hidden>
+        <p class="받음">받았습니다. 아래 <b>네 번</b>만 누르시면 끝입니다. 타이핑할 것은 없습니다.</p>
+        <ol class="할일">
+          <li>받은 <b>volcano-mac.zip</b> 을 <b>두 번</b> 누르세요. 압축이 풀리면서
+              <b>volcano-setup.command</b> 가 옆에 생깁니다.</li>
+          <li>그 <b>volcano-setup.command</b> 를 <b>오른쪽 클릭</b> 하세요.
+              (마우스 오른쪽 단추가 없으면 <b>Control</b> 을 누른 채 클릭)</li>
+          <li>나온 목록에서 <b>[열기]</b> 를 누르세요. <u>두 번 누르지 말고 꼭 오른쪽 클릭으로</u> 여셔야 합니다.</li>
+          <li>「확인되지 않은 개발자」 경고가 뜨면 <b>[열기]</b> 를 한 번 더 누르세요.</li>
+        </ol>
+        <p class="귀띔"><b>터미널(검은 창)이 저절로 열리고</b> 거기서 알아서 다 깝니다.
+        그다음은 손댈 것이 없습니다. 끝날 때쯤 로그인 창이 한 번 열리는데, 메일로 로그인만 하시면 됩니다.<br>
+        다음부터는 경고가 안 뜹니다 — 처음 한 번뿐입니다.</p>
       </div>
-      <p class="받음" id="맥복사됨" hidden>복사했습니다. 이제 아래 네 줄만 하시면 끝입니다.</p>
-      <h2>복사한 다음</h2>
-      <ol class="할일">
-        <li><b>터미널</b>을 여세요. <b>⌘ + 스페이스</b> → <b>터미널</b> 이라고 치고 엔터.</li>
-        <li>글자만 있는 빈 창이 뜹니다. 정상입니다.</li>
-        <li><b>⌘ + V</b> 로 붙여넣고 <b>엔터</b>를 누르세요.</li>
-        <li>저절로 진행됩니다. 끝날 때쯤 로그인 창이 한 번 열립니다.</li>
-      </ol>
+
+      <div id="맥받기전">
+        <h2>누르면 이렇게 됩니다</h2>
+        <ol class="할일">
+          <li>꾸러미 하나(<b>volcano-mac.zip</b>)가 내려받아집니다.</li>
+          <li>두 번 눌러 풀고, 나온 파일을 <b>오른쪽 클릭 → 열기</b> 하면
+              <b>터미널이 저절로 열리면서</b> 나머지가 전부 진행됩니다.</li>
+        </ol>
+        <p class="귀띔">터미널을 직접 찾아 열 필요 없습니다. 타이핑도 없습니다.</p>
+      </div>
+
+      <details>
+        <summary>위 방법이 안 되면 — 한 줄 붙여넣기</summary>
+        <p class="설명" style="font-size:16px;margin:12px 0">
+          터미널을 직접 여실 수 있는 분만 쓰세요.
+          <b>⌘ + 스페이스</b> → <b>터미널</b> 이라고 치고 엔터 → 아래를 붙여넣고 엔터.</p>
+        <div class="명령칸">
+          <code class="명령" id="맥명령">준비 중…</code>
+          <button class="복사" id="복사단추" type="button">복사</button>
+        </div>
+      </details>
     </div>
 
     <p class="바꾸기">잘못 잡혔나요? <a id="바꾸기">다른 쪽 보기</a></p>
@@ -175,10 +200,12 @@ function 그리기(){
   document.getElementById("윈도우칸").hidden = (지금 !== "win");
   document.getElementById("맥칸").hidden     = (지금 !== "mac");
   document.getElementById("받기단추").href   = 받는곳 + "/setup.bat";
+  document.getElementById("맥받기단추").href = 받는곳 + "/volcano-mac.zip";
   document.getElementById("맥명령").textContent = 맥한줄;
   document.getElementById("받기전").hidden = false;
   document.getElementById("받은뒤").hidden = true;
-  document.getElementById("맥복사됨").hidden = true;
+  document.getElementById("맥받기전").hidden = false;
+  document.getElementById("맥받은뒤").hidden = true;
 }
 document.getElementById("받기단추").addEventListener("click", function(){
   // 브라우저는 남의 컴퓨터에서 프로그램을 못 돌린다(보안). 받는 데까지가 끝이라,
@@ -186,8 +213,9 @@ document.getElementById("받기단추").addEventListener("click", function(){
   document.getElementById("받기전").hidden = true;
   document.getElementById("받은뒤").hidden = false;
 });
-document.getElementById("복사단추").addEventListener("click", function(){
-  document.getElementById("맥복사됨").hidden = false;
+document.getElementById("맥받기단추").addEventListener("click", function(){
+  document.getElementById("맥받기전").hidden = true;
+  document.getElementById("맥받은뒤").hidden = false;
 });
 document.getElementById("바꾸기").addEventListener("click", function(){
   지금 = (지금 === "mac") ? "win" : "mac";
