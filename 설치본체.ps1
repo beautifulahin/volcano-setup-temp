@@ -424,6 +424,28 @@ if ($codeCli) {
   $script:codePath = $codeCli
 }
 
+# 작업 폴더에 VS Code 설정을 놓는다 — 거기 터미널에서 claude 가 바로 되게.
+# (실측 2026-09-05 — VS Code 터미널에서 「'claude' 용어가 인식되지 않습니다」가 났다.
+#  새로 깐 프로그램은 이미 열린 창의 PATH 에 없다.)
+try {
+  $vscDir = Join-Path $JOBS '.vscode'
+  New-Item -ItemType Directory -Force -Path $vscDir | Out-Null
+  $claudeDir = Join-Path $env:USERPROFILE '.local\bin'
+  $settings = @{
+    'terminal.integrated.env.windows' = @{
+      'PATH'           = ($claudeDir + ';' + $BIN + ';${env:PATH}')
+      'VOLCANO_HOME'   = $vHome
+      'VOLCANO_PY'     = $PY
+      'VOLCANO_JOBS'   = $JOBS
+      'VOLCANO_RUNNER' = $RUNNER
+    }
+  } | ConvertTo-Json -Depth 5
+  # JSON 에는 BOM 을 넣지 않는다 — 붙이면 VS Code 가 설정을 못 읽는다.
+  [IO.File]::WriteAllText((Join-Path $vscDir 'settings.json'),
+    ($settings -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding $false))
+  Log "VS Code 설정을 놓았다: $vscDir"
+} catch { Log ("VS Code 설정 실패: " + $_) }
+
 Step 9 "설정 적기"
 # 클로드코드 자리를 적어 둔다 — 로그인 창이 이것을 쓴다.
 if (-not $script:claudePath) {
