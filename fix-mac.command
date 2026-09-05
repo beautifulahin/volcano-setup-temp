@@ -72,8 +72,35 @@ JSONEOF
 echo "  [됨] 작업 폴더 설정"
 
 # 5. 파이썬 (알려만 준다 — 고치려면 설치기를 다시 돌려야 한다)
-if [ -x "$VENVPY" ]; then echo "  [됨] 파이썬"
-else echo "  [안됨] 파이썬이 없습니다 — setup-mac.command 를 다시 돌려 주세요"; left="$left 파이썬"; fi
+if [ -x "$VENVPY" ]; then
+  echo "  [됨] 파이썬"
+else
+  echo "  [..] 파이썬이 없습니다 — 깝니다 (몇 분 걸립니다)"
+  export UV_INSTALL_DIR="$BIN" UV_UNMANAGED_INSTALL="$BIN" \
+         UV_PYTHON_INSTALL_DIR="$VHOME/python" UV_PYTHON_BIN_DIR="$BIN" \
+         UV_TOOL_BIN_DIR="$BIN" UV_NO_MODIFY_PATH=1
+  UV=""
+  [ -x "$BIN/uv" ] && UV="$BIN/uv"
+  [ -z "$UV" ] && command -v uv >/dev/null 2>&1 && UV="uv"
+  if [ -z "$UV" ]; then
+    curl -fsSL https://astral.sh/uv/install.sh | sh >/dev/null 2>&1
+    [ -x "$BIN/uv" ] && UV="$BIN/uv"
+  fi
+  if [ -n "$UV" ]; then
+    "$UV" python install 3.12 >/dev/null 2>&1
+    "$UV" venv --seed --python 3.12 "$VHOME/venv" >/dev/null 2>&1
+    [ -x "$VHOME/venv/bin/python3" ] && VENVPY="$VHOME/venv/bin/python3"
+    if [ -x "$VENVPY" ]; then
+      "$UV" pip install --python "$VENVPY" --quiet pillow numpy opencv-python fonttools brotli >/dev/null 2>&1
+      "$UV" pip install --python "$VENVPY" --quiet openai-whisper >/dev/null 2>&1
+    fi
+  fi
+  if [ -x "$VENVPY" ] || [ -x "$VHOME/venv/bin/python3" ]; then
+    echo "  [고침] 파이썬을 깔았습니다"; fixed="$fixed 파이썬"
+  else
+    echo "  [안됨] 파이썬을 깔지 못했습니다 — setup-mac.command 를 다시 돌려 주세요"; left="$left 파이썬"
+  fi
+fi
 
 echo
 echo "──────────────────────────────────────"

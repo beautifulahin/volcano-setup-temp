@@ -100,9 +100,43 @@ try {
   Write-Host '[OK] Workspace settings'
 } catch { Write-Host '[!] Workspace settings not written' }
 
-# 5. Python side (only report - repair needs the full installer)
+# 5. Python - repair it here too, not just report
 if (Test-Path $venvPy) { Write-Host '[OK] Python' }
-else { Write-Host '[X] Python is missing - run setup.bat again'; $left += 'Python' }
+else {
+  Write-Host '[..] Python is missing - installing (this takes a few minutes)'
+  $env:UV_INSTALL_DIR = $bin
+  $env:UV_UNMANAGED_INSTALL = $bin
+  $env:UV_PYTHON_INSTALL_DIR = (Join-Path $vHome 'python')
+  $env:UV_PYTHON_BIN_DIR = $bin
+  $env:UV_TOOL_BIN_DIR = $bin
+  $env:UV_NO_MODIFY_PATH = '1'
+  $uv = $null
+  foreach ($cand in @((Join-Path $bin 'uv.exe'), 'uv')) {
+    if ($cand -eq 'uv') { if (Get-Command uv -ErrorAction SilentlyContinue) { $uv = 'uv'; break } }
+    elseif (Test-Path $cand) { $uv = $cand; break }
+  }
+  if (-not $uv) {
+    try {
+      $b = (Invoke-WebRequest -Uri 'https://astral.sh/uv/install.ps1' -UseBasicParsing).Content
+      if ($b -isnot [string]) { $b = [System.Text.Encoding]::UTF8.GetString($b) }
+      & ([scriptblock]::Create($b)) 2>&1 | Out-Null
+    } catch { }
+    if (Test-Path (Join-Path $bin 'uv.exe')) { $uv = (Join-Path $bin 'uv.exe') }
+  }
+  if ($uv) {
+    $before = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try {
+      & $uv python install 3.12 2>&1 | Out-Null
+      & $uv venv --seed --python 3.12 (Join-Path $vHome 'venv') 2>&1 | Out-Null
+      if (Test-Path $venvPy) {
+        & $uv pip install --python $venvPy --quiet pillow numpy opencv-python fonttools brotli 2>&1 | Out-Null
+        & $uv pip install --python $venvPy --quiet openai-whisper 2>&1 | Out-Null
+      }
+    } finally { $ErrorActionPreference = $before }
+  }
+  if (Test-Path $venvPy) { Write-Host '[FIXED] Python installed'; $fixed += 'Python' }
+  else { Write-Host '[X] Could not install Python - run setup.bat again'; $left += 'Python' }
+}
 
 Write-Host ''
 Write-Host '======================================'
