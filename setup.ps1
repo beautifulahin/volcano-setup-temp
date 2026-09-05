@@ -94,32 +94,34 @@ try {
     Write-Host ''
     $vHomeDir = if ($env:VOLCANO_DEST) { Join-Path $env:VOLCANO_DEST 'volcano' }
                 else { Join-Path $env:LOCALAPPDATA 'volcano' }
-    $bodyPs1  = Join-Path $vHomeDir '설치기\설치본체.ps1'
-    $bundled  = Join-Path $vHomeDir '앱동봉\설치본체.ps1'
-    if (-not (Test-Path $bodyPs1)) { $bodyPs1 = $bundled }
+    $setupDir = Join-Path $vHomeDir '설치기'
+    New-Item -ItemType Directory -Force -Path $setupDir | Out-Null
+
+    # ★ 있는 것을 쓰지 말고 **늘 새로 받는다.** 옛 파일이 있으면 그걸 쓰던 탓에,
+    #   고쳐 올린 판이 이미 깐 사람에게 며칠이 지나도 안 갔다(실측 2026-09-05).
+    Write-Host '  · 최신 설치기를 받습니다...'
+    $bodyPs1 = Join-Path $setupDir '설치본체.ps1'
+    $got = $false
+    foreach ($nm in @('설치본체.ps1','설치마무리.py','점검.py','설정.json')) {
+      try {
+        $u = 'https://beautifulahin.github.io/volcano-setup-temp'.TrimEnd('/') + '/' + [uri]::EscapeDataString($nm)
+        $tmpFile = (Join-Path $setupDir ($nm + '.내려받는중'))
+        Invoke-WebRequest -Uri $u -OutFile $tmpFile -UseBasicParsing -TimeoutSec 180
+        $target = Join-Path $setupDir $nm
+        if (Test-Path $target) { try { (Get-Item $target -Force).Attributes = 'Normal' } catch {} }
+        Move-Item -Force $tmpFile $target
+        if ($nm -eq '설치본체.ps1') { $got = $true }
+      } catch { Write-Host ('  ! ' + $nm + ' 을 받지 못했습니다 — 있던 것을 씁니다') }
+    }
+    if (-not $got -and -not (Test-Path $bodyPs1)) {
+      $bodyPs1 = Join-Path $vHomeDir '앱동봉\설치본체.ps1'
+    }
     if (Test-Path $bodyPs1) {
       $env:VOLCANO_APP = ''      # 이 창이 사람 창이다 — 여기서 묻는다
       & $bodyPs1
     } else {
-      # 처음이라 설치본체가 없다. 앱을 거치지 말고 여기서 직접 받는다.
-      Write-Host '  · 처음이라 준비물을 먼저 받습니다...'
-      $setupDir = Join-Path $vHomeDir '설치기'
-      New-Item -ItemType Directory -Force -Path $setupDir | Out-Null
-      $ok = $false
-      foreach ($nm in @('설치본체.ps1','설치마무리.py','점검.py','설정.json')) {
-        try {
-          $u = 'https://beautifulahin.github.io/volcano-setup-temp'.TrimEnd('/') + '/' + [uri]::EscapeDataString($nm)
-          Invoke-WebRequest -Uri $u -OutFile (Join-Path $setupDir $nm) -UseBasicParsing -TimeoutSec 120
-          if ($nm -eq '설치본체.ps1') { $ok = $true }
-        } catch { Write-Host ('  ! ' + $nm + ' 을 받지 못했습니다') }
-      }
-      if ($ok) {
-        $env:VOLCANO_APP = ''
-        & (Join-Path $setupDir '설치본체.ps1')
-      } else {
-        Write-Host '  ! 준비물을 받지 못해 앱으로 넘깁니다.'
-        Start-Process -FilePath $appExe -WorkingDirectory $destDir
-      }
+      Write-Host '  ! 설치기를 받지 못해 앱으로 넘깁니다.'
+      Start-Process -FilePath $appExe -WorkingDirectory $destDir
     }
   }
 } catch {
