@@ -90,6 +90,19 @@ function FindRunnable($name) {
   return $ran
 }
 function Have($name) { $null -ne (FindRunnable $name) }
+
+# ★ 방금 깐 프로그램은 이 창의 PATH 에 아직 없다. 우리 폴더를 직접 봐야 한다.
+#   (실측 2026-09-05 — uv 가 "everything's installed!" 로 깔렸는데도 못 찾아 실패했다.)
+function OurExe($name) {
+  foreach ($ext in @('.exe', '.cmd', '.bat', '')) {
+    $p = Join-Path $BIN ($name + $ext)
+    if (Test-Path $p) { return $p }
+  }
+  return $null
+}
+function HaveUv() { ($null -ne (OurExe 'uv')) -or (Have 'uv') }
+# uv 를 부를 때 쓸 이름 — 우리 것이 있으면 그 전체 경로를 쓴다.
+function UvCmd() { $u = OurExe 'uv'; if ($u) { return $u } else { return 'uv' } }
 function IsEmpty($val) { return (-not $val) -or ($val -eq 'TODO') }
 function Quote($msg) { "'" + (([string]$msg) -replace "'", "''") + "'" }
 
@@ -210,7 +223,7 @@ $env:UV_CACHE_DIR          = Join-Path $vHome 'cache'
 $env:UV_TOOL_BIN_DIR       = $BIN
 $env:UV_INSTALL_DIR        = $BIN
 $env:UV_NO_MODIFY_PATH     = '1'
-if (Have 'uv') { Skip 'uv' }
+if (HaveUv) { Skip 'uv' }
 else {
   try {
     # ★ -UseBasicParsing 을 쓰면 .Content 가 **글자가 아니라 바이트 배열**로 온다.
@@ -225,7 +238,7 @@ else {
     Write-Host ("      · 첫 번째 길이 막혔습니다 (" + $_.Exception.Message + ")") -ForegroundColor DarkGray
     Write-Host '      · 다른 길로 받아 봅니다...'
   }
-  if (-not (Have 'uv')) {
+  if (-not (HaveUv)) {
     # 두 번째 길 — 깃허브 릴리스에서 실행파일만 곧장 받는다(스크립트를 안 돌린다).
     try {
       $uvZip = Join-Path $VOL 'uv.zip'
@@ -238,17 +251,17 @@ else {
       Log ("uv 깃허브 길도 실패: " + $_.Exception.Message)
     }
   }
-  if (-not (Have 'uv')) {
+  if (-not (HaveUv)) {
     Fail "uv 를 받지 못했습니다 (두 길 다 막혔습니다)" ("회사망이나 백신이 astral.sh / github.com 을 막고 있을 수 있습니다. " +
       "자세한 까닭은 이 기록에 있습니다: " + $LOG)
   }
   Ok 'uv'
 }
-& uv python install 3.12 *>> $LOG
+& (UvCmd) python install 3.12 *>> $LOG
 if ($LASTEXITCODE -ne 0) { Fail "파이썬 3.12 를 받지 못했습니다" "인터넷 연결을 확인하고 다시 돌려 주세요" }
 if ((Test-Path $PY) -or (Test-Path $PYalt)) { Skip "파이썬 자리 $VENV" }
 else {
-  & uv venv --seed --python 3.12 $VENV *>> $LOG
+  & (UvCmd) venv --seed --python 3.12 $VENV *>> $LOG
   if (Test-Path $PYalt) { $PY = $PYalt }
   if (-not (Test-Path $PY)) { Fail "파이썬 자리를 만들지 못했습니다" "$VENV 폴더 이름을 바꾼 뒤 다시 돌려 주세요" }
   Ok "파이썬 자리 $VENV"
@@ -256,11 +269,11 @@ else {
 
 # ── 3. 파이썬 부품 ──────────────────────────────────────────
 Step 3 "파이썬 부품 넣기 (몇 분 걸립니다)"
-& uv pip install --python $PY --quiet pillow numpy opencv-python fonttools brotli *>> $LOG
+& (UvCmd) pip install --python $PY --quiet pillow numpy opencv-python fonttools brotli *>> $LOG
 if ($LASTEXITCODE -ne 0) { Fail "파이썬 부품을 넣지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
 Ok "그림·글꼴·영상 부품"
 Say "   ·  받아쓰기(whisper) 를 넣는 중입니다 — 덩치가 커서 오래 걸립니다"
-& uv pip install --python $PY --quiet openai-whisper *>> $LOG
+& (UvCmd) pip install --python $PY --quiet openai-whisper *>> $LOG
 if ($LASTEXITCODE -eq 0) { Ok "받아쓰기(whisper)" }
 else { Warn "받아쓰기(whisper) 를 넣지 못했습니다" "설치는 계속합니다. 마무리 단계에서 받아쓰기 열쇠를 넣으면 대신 쓸 수 있습니다" }
 
@@ -300,7 +313,7 @@ if ($foundFfmpeg -and (HasSubFilter $foundFfmpeg.Source) -and (Have 'ffprobe')) 
 
 # ── 5. yt-dlp ───────────────────────────────────────────────
 Step 5 "영상 받는 도구(yt-dlp) 준비"
-if (Have 'yt-dlp') { Skip 'yt-dlp' }
+if (($null -ne (OurExe 'yt-dlp')) -or (Have 'yt-dlp')) { Skip 'yt-dlp' }
 else {
   try { Fetch 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' (Join-Path $BIN 'yt-dlp.exe') }
   catch { Fail "yt-dlp 를 받지 못했습니다" "인터넷 연결을 확인하고 설치 명령을 한 번 더 돌려 주세요" }
@@ -320,7 +333,14 @@ else {
     if ($ccBody -isnot [string]) { $ccBody = [System.Text.Encoding]::UTF8.GetString($ccBody) }
     & ([scriptblock]::Create($ccBody)) *>> $LOG
   } catch { Log ("claude 실패: " + $_) }
-  if (Have 'claude') { Ok 'claude' }
+  # 방금 깐 claude 도 이 창의 PATH 에 없다. 흔한 자리를 직접 본다.
+  $ccPaths = @(
+    (Join-Path $env:USERPROFILE '.local\bin\claude.cmd'),
+    (Join-Path $env:USERPROFILE '.local\bin\claude.exe'),
+    (Join-Path $env:APPDATA 'npm\claude.cmd')
+  )
+  $ccFound = $ccPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+  if ($ccFound -or (Have 'claude')) { Ok 'claude' }
   else { Warn "Claude Code 를 설치하지 못했습니다" "설치는 계속합니다. 나중에 PowerShell 에 이렇게 치세요: irm https://claude.ai/install.ps1 | iex" }
 }
 
