@@ -140,6 +140,44 @@ else {
 
 Write-Host ''
 Write-Host '======================================'
+# 6. Git Bash - Claude Code on Windows runs every command through bash.exe.
+#    Without it nothing Volcano asks for can run at all.
+$gitBash = $null
+foreach ($c in @(
+    ($env:CLAUDE_CODE_GIT_BASH_PATH),
+    (Join-Path $vHome 'git\bin\bash.exe'),
+    'C:\Program Files\Git\bin\bash.exe',
+    'C:\Program Files (x86)\Git\bin\bash.exe',
+    (Join-Path $env:LOCALAPPDATA 'Programs\Git\bin\bash.exe'))) {
+  if ($c -and (Test-Path $c)) { $gitBash = $c; break }
+}
+if (-not $gitBash) {
+  Write-Host 'Installing Git Bash (required by Claude Code)...'
+  try {
+    $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/git-for-windows/git/releases/latest' -UseBasicParsing -TimeoutSec 120
+    $asset = $rel.assets | Where-Object { $_.name -like 'PortableGit-*-64-bit.7z.exe' } | Select-Object -First 1
+    if ($asset) {
+      $tmp = Join-Path $vHome 'PortableGit.exe'
+      Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmp -UseBasicParsing -TimeoutSec 600
+      $gitDir = Join-Path $vHome 'git'
+      & $tmp ('-o"' + $gitDir + '"') '-y' | Out-Null
+      Remove-Item -Force $tmp -ErrorAction SilentlyContinue
+      $maybe = Join-Path $gitDir 'bin\bash.exe'
+      if (Test-Path $maybe) { $gitBash = $maybe }
+    }
+  } catch { }
+}
+if ($gitBash) {
+  if (-not [Environment]::GetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH','User')) {
+    [Environment]::SetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH', $gitBash, 'User')
+  }
+  Write-Host ('[OK] Git Bash: ' + $gitBash)
+  $fixed += 'Git Bash'
+} else {
+  Write-Host '[X] Git Bash missing - install Git for Windows from git-scm.com'
+  $left += 'Git Bash'
+}
+
 if ($fixed.Count -gt 0) { Write-Host ('Fixed: ' + ($fixed -join ', ')) }
 if ($left.Count -gt 0)  { Write-Host ('Still missing: ' + ($left -join ', ')) }
 if ($fixed.Count -eq 0 -and $left.Count -eq 0) { Write-Host 'Everything was already fine.' }

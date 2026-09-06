@@ -211,6 +211,18 @@ if claude자리:
 # ── 3. 설정과 열쇠 ──────────────────────────────────────────
 적기((집 / "env").exists(), "설정 파일 (env)", 다시깔기)
 
+# 윈도우에서만 — 클로드 코드는 명령을 돌릴 때 bash.exe 를 쓴다. 없으면 한 줄도 못 돌린다.
+if 윈도우:
+    깃후보 = [
+        os.environ.get("CLAUDE_CODE_GIT_BASH_PATH") or "",
+        str(집 / "git" / "bin" / "bash.exe"),
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+    ]
+    깃있음 = any(자리 and Path(자리).exists() for 자리 in 깃후보)
+    적기(깃있음, "Git Bash (클로드가 명령을 돌리는 데 쓴다)",
+        "이것이 없으면 볼케이노가 시키는 명령을 한 줄도 못 돌립니다 — " + 다시깔기)
+
 # ── 볼케이노가 붙었나 · 승인됐나 ───────────────────────────
 # 승인은 Claude Code 의 OAuth 가 한다(/mcp → Authenticate). 여기서는 결과만 본다.
 이름 = str(설정.get("mcp_이름") or "volcano")

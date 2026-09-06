@@ -329,8 +329,43 @@ else {
   else { Warn "Claude Code 를 설치하지 못했습니다" "설치는 계속합니다. 나중에 PowerShell 에 이렇게 치세요: irm https://claude.ai/install.ps1 | iex" }
 }
 
-# ── 7. 설정 적기 ────────────────────────────────────────────
-# ── 7-2. VS Code ────────────────────────────────────────────
+# ── Git Bash — 윈도우 클로드코드에 **꼭 필요하다** ──────────
+# 윈도우에서 클로드코드의 Bash 도구는 bash.exe 를 찾는다. 없으면
+#   "Or set CLAUDE_CODE_GIT_BASH_PATH to your bash.exe location." 로 멈춘다(실측 2026-09-06).
+# 볼케이노는 단계마다 명령을 돌리라고 시키므로, 이게 없으면 **한 줄도 못 돌린다.**
+# 관리자 권한을 안 쓰려고 설치본이 아니라 PortableGit(제 스스로 푸는 파일)을 쓴다.
+$script:gitBash = $null
+$gitCands = @(
+  (Join-Path $vHome 'gitinash.exe'),
+  'C:\Program Files\Gitinash.exe',
+  'C:\Program Files (x86)\Gitinash.exe',
+  (Join-Path $env:LOCALAPPDATA 'Programs\Gitinash.exe')
+)
+$script:gitBash = $gitCands | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($script:gitBash) {
+  Skip ("Git Bash (" + $script:gitBash + ")")
+} else {
+  try {
+    Say '   ·  Git Bash 를 받는 중입니다 (클로드코드가 명령을 돌리려면 꼭 필요합니다)'
+    $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/git-for-windows/git/releases/latest' -UseBasicParsing -TimeoutSec 120
+    $asset = $rel.assets | Where-Object { $_.name -like 'PortableGit-*-64-bit.7z.exe' } | Select-Object -First 1
+    if (-not $asset) { throw 'PortableGit 파일을 찾지 못했습니다' }
+    $gitExe = Join-Path $vHome 'PortableGit.exe'
+    Fetch $asset.browser_download_url $gitExe
+    $gitDir = Join-Path $vHome 'git'
+    # 제 스스로 푸는 파일이다 — 조용히 풀기만 한다(설치가 아니다).
+    & $gitExe ('-o"' + $gitDir + '"') '-y' | Out-Null
+    Remove-Item -Force $gitExe -ErrorAction SilentlyContinue
+    $maybe = Join-Path $gitDir 'binash.exe'
+    if (Test-Path $maybe) { $script:gitBash = $maybe; Ok ('Git Bash -> ' + $maybe) }
+    else { Warn "Git Bash 를 풀지 못했습니다" "설치는 계속합니다. git-scm.com 에서 Git for Windows 를 받아 까시면 됩니다" }
+  } catch {
+    Log ("Git Bash 실패: " + $_)
+    Warn "Git Bash 를 넣지 못했습니다" "이것 없이는 볼케이노가 명령을 못 돌립니다. git-scm.com 에서 Git for Windows 를 받아 까신 뒤 이 설치를 한 번 더 돌려 주세요"
+  }
+}
+
+# ── 7. VS Code ──────────────────────────────────────────────
 # 사용자 지시 2026-09-05: 「다 설치되면 vscode 를 설치되게 해줘」.
 # 없어도 볼케이노는 돈다 — 그래서 실패해도 설치를 멈추지 않는다(Warn 으로 넘긴다).
 Step 7 "VS Code 준비"
@@ -395,7 +430,10 @@ try {
       'VOLCANO_PY'     = $PY
       'VOLCANO_JOBS'   = $JOBS
     }
-  } | ConvertTo-Json -Depth 5
+  }
+  # 클로드코드가 명령을 돌릴 때 쓸 bash.exe 를 짚어 준다 — 없으면 한 줄도 못 돌린다.
+  if ($script:gitBash) { $settings['terminal.integrated.env.windows']['CLAUDE_CODE_GIT_BASH_PATH'] = $script:gitBash }
+  $settings = $settings | ConvertTo-Json -Depth 5
   # JSON 에는 BOM 을 넣지 않는다 — 붙이면 VS Code 가 설정을 못 읽는다.
   [IO.File]::WriteAllText((Join-Path $vscDir 'settings.json'),
     ($settings -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding $false))
@@ -421,6 +459,7 @@ try {
   Log "도구 허용을 놓았다: $clDir"
 } catch { Log ("도구 허용 실패: " + $_) }
 
+# ── 8. 설정 적기 ────────────────────────────────────────────
 Step 8 "설정 적기"
 # 클로드코드 자리를 적어 둔다 — 로그인 창이 이것을 쓴다.
 if (-not $script:claudePath) {
@@ -445,6 +484,12 @@ AddEnvLine 'VOLCANO_HOME'   "VOLCANO_HOME=$vHome"
 AddEnvLine 'VOLCANO_PY'     "VOLCANO_PY=$PY"
 AddEnvLine 'VOLCANO_JOBS'   "VOLCANO_JOBS=$JOBS"
 if ($script:claudePath) { AddEnvLine 'VOLCANO_CLAUDE' "VOLCANO_CLAUDE=$($script:claudePath)" }
+if ($script:gitBash) {
+  AddEnvLine 'CLAUDE_CODE_GIT_BASH_PATH' "CLAUDE_CODE_GIT_BASH_PATH=$($script:gitBash)"
+  if (-not [Environment]::GetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH','User')) {
+    [Environment]::SetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH', $script:gitBash, 'User')
+  }
+}
 if ($script:codePath)   { AddEnvLine 'VOLCANO_CODE'   "VOLCANO_CODE=$($script:codePath)" }
 
 foreach ($pair in @(@('VOLCANO_HOME',$vHome), @('VOLCANO_PY',$PY), @('VOLCANO_JOBS',$JOBS))) {
@@ -505,7 +550,7 @@ try {
 try { FetchPkg '점검.py' (Join-Path $setupDir '점검.py') } catch { Warn "점검.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
 try { FetchPkg '설치마무리.py' (Join-Path $setupDir '설치마무리.py') } catch { Warn "설치마무리.py 를 가져오지 못했습니다" "인터넷이 되면 설치 명령을 한 번 더 돌려 주세요" }
 
-# ── 8. 바탕화면 바로가기 ────────────────────────────────────
+# ── 9. 바탕화면 바로가기 ────────────────────────────────────
 Step 9 "바탕화면 바로가기 만들기"
 # 바탕화면. 시험(VOLCANO_DEST)일 때는 진짜 바탕화면에 아무것도 놓지 않는다.
 if ($env:VOLCANO_DEST) {
@@ -571,7 +616,7 @@ WriteBatPair $launcherBat $launcherPs -Hidden
 Ok $launcherBat
 }
 
-# ── 9. 마무리 (이 창에서 그대로) ───────────────────────────
+# ── 10. 마무리 (이 창에서 그대로) ──────────────────────────
 # 새 창을 열지 않는다. 묻는 것은 이 콘솔에서 그대로 받는다.
 Step 10 "마무리 — 로그인과 열쇠 넣기"
 $finishPy = Join-Path $setupDir '설치마무리.py'
