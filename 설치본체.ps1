@@ -402,6 +402,25 @@ try {
   Log "VS Code 설정을 놓았다: $vscDir"
 } catch { Log ("VS Code 설정 실패: " + $_) }
 
+# 클로드 코드가 「이 도구를 써도 됩니까」를 매번 묻지 않게, 이 작업장에서만 미리 허용해 둔다.
+#   볼케이노는 단계마다 파이썬·ffmpeg 명령을 직접 돌리라고 시킨다(서버 setup 응답 실측 2026-09-06).
+#   명령을 하나하나 적어 둘 수 없어 이 폴더 안에서만 통째로 허용한다. 다른 폴더에는 영향이 없다.
+try {
+  $mcpName = if ($cfg.'mcp_이름') { [string]$cfg.'mcp_이름' } else { 'volcano' }
+  $clDir = Join-Path $JOBS '.claude'
+  New-Item -ItemType Directory -Force -Path $clDir | Out-Null
+  $perm = @{
+    'permissions' = @{
+      'allow' = @(('mcp__' + $mcpName), 'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebFetch', 'WebSearch')
+    }
+  } | ConvertTo-Json -Depth 5
+  # JSON 에는 BOM 을 넣지 않는다 — 붙이면 못 읽는다.
+  [IO.File]::WriteAllText((Join-Path $clDir 'settings.json'),
+    ($perm -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding $false))
+  Ok "도구 허용 ($clDir\settings.json)"
+  Log "도구 허용을 놓았다: $clDir"
+} catch { Log ("도구 허용 실패: " + $_) }
+
 Step 8 "설정 적기"
 # 클로드코드 자리를 적어 둔다 — 로그인 창이 이것을 쓴다.
 if (-not $script:claudePath) {

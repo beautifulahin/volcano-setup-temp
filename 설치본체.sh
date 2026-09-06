@@ -277,7 +277,14 @@ else
     VSDIR="/Applications"
     { [ -d "$VSDIR" ] && [ -w "$VSDIR" ]; } || { VSDIR="$DEST/Applications"; mkdir -p "$VSDIR" 2>/dev/null || true; }
   fi
-  if fetch "https://update.code.visualstudio.com/latest/darwin-universal/stable" "$VOL/vscode.zip" >>"$LOG" 2>&1; then
+  # 칩에 맞는 것만 받는다 — 유니버설은 둘 다 들어 있어 568MB 였다(실측 2026-09-06).
+  #   ARCH 는 위에서 이미 갈라 두었다(arm64 / amd64). 못 받으면 유니버설로 물러선다.
+  case "$ARCH" in
+    arm64) VSKIND=darwin-arm64 ;;
+    *)     VSKIND=darwin-x64 ;;
+  esac
+  if fetch "https://update.code.visualstudio.com/latest/$VSKIND/stable" "$VOL/vscode.zip" >>"$LOG" 2>&1 \
+     || fetch "https://update.code.visualstudio.com/latest/darwin-universal/stable" "$VOL/vscode.zip" >>"$LOG" 2>&1; then
     if ditto -x -k "$VOL/vscode.zip" "$VOL/vscode_x" >>"$LOG" 2>&1; then
       SRCAPP="$(/usr/bin/find "$VOL/vscode_x" -maxdepth 2 -type d -name '*.app' -print 2>/dev/null | head -1)"
       if [ -n "$SRCAPP" ] && ditto "$SRCAPP" "$VSDIR/Visual Studio Code.app" >>"$LOG" 2>&1; then
@@ -306,6 +313,64 @@ if [ -n "$CODEBIN" ]; then
     warn "VS Code 확장을 넣지 못했습니다" "VS Code 를 열고 확장에서 「Claude Code」를 찾아 설치하세요"
   fi
   ln -sfn "$CODEBIN" "$BIN/code" 2>/dev/null || true
+fi
+
+# 작업장에 VS Code 설정을 놓는다 — 윈도우 쪽에만 있고 맥에 없었다(2026-09-06).
+#   · 「이 폴더를 믿습니까」 창을 없앤다.
+#   · VS Code 안의 터미널이 볼케이노 파이썬·도구를 바로 찾게 PATH 를 박는다.
+#     (새로 깐 것은 이미 열려 있던 창의 PATH 에 없다.)
+mkdir -p "$JOBS/.vscode" 2>/dev/null || true
+cat > "$JOBS/.vscode/settings.json" <<VSSET
+{
+  "security.workspace.trust.enabled": false,
+  "terminal.integrated.env.osx": {
+    "PATH": "$BIN:$DEST/.local/bin:\${env:PATH}",
+    "VOLCANO_HOME": "$VOL",
+    "VOLCANO_PY": "$PY",
+    "VOLCANO_JOBS": "$JOBS"
+  }
+}
+VSSET
+ok "VS Code 설정 ($JOBS/.vscode/settings.json)"
+
+# 클로드 코드가 「이 도구를 써도 됩니까」를 매번 묻지 않게, 이 작업장에서만 미리 허용해 둔다.
+#   볼케이노는 단계마다 파이썬·ffmpeg 명령을 직접 돌리라고 시킨다(서버 setup 응답 실측 2026-09-06).
+#   그래서 명령을 하나하나 적어 둘 수가 없다 — 이 폴더 안에서만 통째로 허용한다.
+#   ※ 이 허용은 **이 폴더를 열었을 때만** 적용된다. 다른 폴더에는 영향이 없다.
+MCPNAME="$(cfg_get mcp_이름)"; [ -n "$MCPNAME" ] || MCPNAME=volcano
+mkdir -p "$JOBS/.claude" 2>/dev/null || true
+cat > "$JOBS/.claude/settings.json" <<CLSET
+{
+  "permissions": {
+    "allow": [
+      "mcp__$MCPNAME",
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch"
+    ]
+  }
+}
+CLSET
+ok "도구 허용 ($JOBS/.claude/settings.json)"
+
+# 바탕화면에 VS Code 아이콘도 놓는다 — 윈도우 설치본은 만드는데 맥에만 없었다(2026-09-06).
+# 응용 프로그램 폴더에 들어가 있어도, 초보자는 거기까지 찾아가지 못한다.
+if [ -n "$VSAPP" ]; then
+  if   [ -d "$DEST/Desktop" ];  then VSDESK="$DEST/Desktop"
+  elif [ -d "$DEST/바탕화면" ]; then VSDESK="$DEST/바탕화면"
+  else VSDESK=""; fi
+  if [ -n "$VSDESK" ]; then
+    if ln -sfn "$VSAPP" "$VSDESK/Visual Studio Code" 2>/dev/null; then
+      ok "바탕화면 아이콘 (Visual Studio Code)"
+    else
+      warn "바탕화면에 VS Code 아이콘을 놓지 못했습니다" "응용 프로그램 폴더의 「Visual Studio Code」를 바탕화면으로 끌어다 놓으세요"
+    fi
+  fi
 fi
 
 # ── 8. 설정 적기 ────────────────────────────────────────────
