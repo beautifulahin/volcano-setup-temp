@@ -336,10 +336,10 @@ else {
 # 관리자 권한을 안 쓰려고 설치본이 아니라 PortableGit(제 스스로 푸는 파일)을 쓴다.
 $script:gitBash = $null
 $gitCands = @(
-  (Join-Path $vHome 'gitinash.exe'),
-  'C:\Program Files\Gitinash.exe',
-  'C:\Program Files (x86)\Gitinash.exe',
-  (Join-Path $env:LOCALAPPDATA 'Programs\Gitinash.exe')
+  (Join-Path $vHome 'git\bin\bash.exe'),
+  'C:\Program Files\Git\bin\bash.exe',
+  'C:\Program Files (x86)\Git\bin\bash.exe',
+  (Join-Path $env:LOCALAPPDATA 'Programs\Git\bin\bash.exe')
 )
 $script:gitBash = $gitCands | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($script:gitBash) {
@@ -356,7 +356,7 @@ if ($script:gitBash) {
     # 제 스스로 푸는 파일이다 — 조용히 풀기만 한다(설치가 아니다).
     & $gitExe ('-o"' + $gitDir + '"') '-y' | Out-Null
     Remove-Item -Force $gitExe -ErrorAction SilentlyContinue
-    $maybe = Join-Path $gitDir 'binash.exe'
+    $maybe = Join-Path $gitDir 'bin\bash.exe'
     if (Test-Path $maybe) { $script:gitBash = $maybe; Ok ('Git Bash -> ' + $maybe) }
     else { Warn "Git Bash 를 풀지 못했습니다" "설치는 계속합니다. git-scm.com 에서 Git for Windows 를 받아 까시면 됩니다" }
   } catch {
