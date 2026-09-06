@@ -81,7 +81,14 @@ if ($codeCli) {
     else {
       Write-Host '[..] Installing the Claude Code extension'
       & $codeCli --install-extension anthropic.claude-code --force 2>&1 | Out-Null
-      Write-Host '[FIXED] Claude Code extension'; $fixed += 'VS Code extension'
+      # Judge by what is actually there, not by the exit code.
+      $again = & $codeCli --list-extensions 2>$null
+      if ($again -match 'anthropic.claude-code') {
+        Write-Host '[FIXED] Claude Code extension'; $fixed += 'VS Code extension'
+      } else {
+        Write-Host '[X] Could not install the extension - open VS Code, search Claude Code in Extensions'
+        $left += 'VS Code extension'
+      }
     }
   } catch { Write-Host '[!] Could not check the extension'; $left += 'VS Code extension' }
 } else { Write-Host '[!] VS Code not found (optional)'; $left += 'VS Code' }

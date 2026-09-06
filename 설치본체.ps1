@@ -404,13 +404,38 @@ else {
 $codeCli = $codeFound
 if (-not $codeCli -and (Have 'code')) { $codeCli = 'code' }
 if ($codeCli) {
+  # ★ 종료코드로만 판단하고, stderr 한 줄에 죽지 않게 한다.
+  #   code.cmd 는 진행 상황을 stderr 로도 뱉는데, $ErrorActionPreference='Stop' 이면
+  #   그것만으로 NativeCommandError 가 나서 「넣지 못했습니다」로 떨어진다
+  #   (uv 에서 겪은 것과 같은 함정 — 실측 2026-09-06 윈도우 실기).
+  $extOk = $false
+  $extSaid = ''
+  $before = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
   try {
-    & $codeCli --install-extension anthropic.claude-code --force *>> $LOG
-    if ($LASTEXITCODE -eq 0) { Ok 'VS Code 의 Claude Code 확장' }
-    else { Warn "VS Code 확장을 넣지 못했습니다" "VS Code 를 열고 확장에서 Claude Code 를 검색해 설치하시면 됩니다" }
+    $global:LASTEXITCODE = 0
+    $out = & $codeCli --install-extension anthropic.claude-code --force 2>&1
+    foreach ($ln in $out) { $t = [string]$ln; Log $t; if ($t.Trim()) { $extSaid = $t.Trim() } }
+    if ($LASTEXITCODE -eq 0) { $extOk = $true }
+    # 이미 깔려 있으면 code.cmd 가 0 이 아닌 값을 줄 때가 있다 — 말로도 본다.
+    if (-not $extOk -and ($out -join ' ') -match 'already installed|successfully installed') { $extOk = $true }
   } catch {
     Log ("VS Code 확장 실패: " + $_)
-    Warn "VS Code 확장을 넣지 못했습니다" "VS Code 를 열고 확장에서 Claude Code 를 검색해 설치하시면 됩니다"
+    $extSaid = [string]$_
+  } finally {
+    $ErrorActionPreference = $before
+  }
+  # 그래도 아니면 정말로 깔렸는지 목록으로 확인한다 — 이것이 마지막 잣대다.
+  if (-not $extOk) {
+    try {
+      $ErrorActionPreference = 'Continue'
+      $lst = & $codeCli --list-extensions 2>&1
+      if (($lst -join "`n") -match 'anthropic\.claude-code') { $extOk = $true }
+    } catch { } finally { $ErrorActionPreference = $before }
+  }
+  if ($extOk) { Ok 'VS Code 의 Claude Code 확장' }
+  else {
+    Warn "VS Code 확장을 넣지 못했습니다" ("VS Code 를 열고 확장에서 Claude Code 를 검색해 설치하시면 됩니다" + $(if ($extSaid) { " (이유: " + $extSaid + ")" } else { "" }))
   }
   $script:codePath = $codeCli
 }
