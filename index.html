@@ -116,63 +116,50 @@
 
     <!-- 맥 -->
     <div id="맥칸" hidden>
-      <p style="font-size:17px;margin:0 0 6px">
-        맥은 <b>아래 단추를 누르고, 터미널에 붙여넣기</b> 하시면 됩니다. 세 걸음입니다.</p>
-      <p class="귀띔" style="margin:0 0 16px">
-        왜 파일로 안 주냐면 — 애플이 <b>서명 없는 파일은 아예 못 열게</b> 막습니다.
-        두 번 눌러도 「휴지통으로 이동 / 완료」 만 뜨고 끝납니다.
-        이 길은 <b>경고가 하나도 안 뜹니다.</b></p>
-
-      <a class="큰단추" id="맥복사단추" href="javascript:void(0)">
-        ① 설치 명령 복사하기
-        <span>누르면 복사됩니다 — 외우실 필요 없습니다</span>
+      <a class="큰단추" id="맥받기단추" href="volcano-setup.shortcut" download>
+        설치 단축어 받기
+        <span>volcano-setup.shortcut · 두 번 누르면 저절로 깔립니다</span>
       </a>
 
       <div id="맥받은뒤" hidden>
-        <p class="받음">복사했습니다. 이제 두 걸음 남았습니다.</p>
+        <p class="받음">받았습니다. 아래 순서대로만 누르시면 끝입니다. 타이핑은 없습니다.</p>
         <ol class="할일">
-          <li><b>터미널을 엽니다.</b> 키보드로 하는 게 가장 빠릅니다.</li>
+          <li>받은 <b>volcano-setup.shortcut</b> 을 <b>두 번</b> 누르세요.
+              <b>「단축어 추가」</b> 창이 뜨면 <b>[단축어 추가]</b> 를 누릅니다.</li>
+          <li><b>단축어 앱</b>이 열립니다. 방금 들어온 <b>「볼케이노 설치」</b> 를 <b>두 번</b> 누르세요.</li>
+          <li>처음 한 번만 물어봅니다 — 뜨는 대로 <b>[허용]</b> 을 누르세요. (보통 2번)
+            <ul style="margin:8px 0 0;padding-left:20px">
+              <li>「스크립트 실행을 허용하시겠습니까?」 → <b>[허용]</b></li>
+              <li>「Terminal을 제어하도록 허용하시겠습니까?」 → <b>[허용]</b></li>
+            </ul>
+          </li>
         </ol>
-
-        <div class="그림">
-          <div class="그림줄">
-            <span class="키">⌘</span><span class="더">+</span><span class="키">스페이스</span>
-            <span class="설명글">를 함께 누르면 화면 가운데에 검색창이 뜹니다</span>
-          </div>
-          <div class="스포트라이트">
-            <span class="돋보기">⌕</span><span class="친글">terminal</span><span class="커서"></span>
-          </div>
-          <div class="그림줄">
-            <span class="설명글">이렇게 치면 맨 위에 <b>터미널</b> 이 뜹니다 →</span>
-            <span class="키">엔터</span>
-          </div>
-        </div>
-
-        <p class="설명" style="margin:14px 0 0;font-size:16px">
-          검색창이 안 뜨면 마우스로도 됩니다 —
-          바탕화면 아무 데나 한 번 클릭 → 화면 <b>맨 위 [이동] 메뉴</b> → <b>[유틸리티]</b> →
-          <b>터미널</b> 을 두 번 누르기.</p>
-
-        <ol class="할일" start="2">
-          <li>글자만 있는 <b>검은(또는 흰) 빈 창</b>이 뜨면
-              <b>Command(⌘) + V</b> 로 붙여넣고 <b>엔터</b> 를 누르세요.</li>
-        </ol>
-        <p class="귀띔">그다음은 <b>손댈 것이 없습니다.</b> 10~20분 동안 알아서 다 깝니다.
-        끝날 때쯤 로그인 창이 한 번 열리는데, 메일로 로그인만 하시면 됩니다.</p>
-        <p class="설명" style="margin:14px 0 6px;font-size:16px">붙여넣을 것은 이 한 줄입니다. 복사가 풀렸으면 여기서 다시 누르세요.</p>
-        <div class="명령칸">
-          <code class="명령" id="맥명령">준비 중…</code>
-          <button class="복사" id="복사단추" type="button">다시 복사</button>
-        </div>
+        <p class="귀띔"><b>터미널(검은 창)이 저절로 열리고</b> 거기서 알아서 다 깝니다.
+        10~20분쯤 걸립니다. 끝날 때쯤 로그인 창이 한 번 열리는데, 메일로 로그인만 하시면 됩니다.<br>
+        다음부터는 <b>단축어 앱에서 「볼케이노 설치」를 두 번</b> 누르면 됩니다 — 경고도 안 뜹니다.</p>
       </div>
 
       <div id="맥받기전">
         <h2>누르면 이렇게 됩니다</h2>
         <ol class="할일">
-          <li>설치 명령 한 줄이 <b>복사</b>됩니다. 외우거나 받아 적을 것 없습니다.</li>
-          <li>터미널을 열고 <b>붙여넣기(⌘V) + 엔터</b> 하면 나머지가 전부 저절로 진행됩니다.</li>
+          <li>단축어 하나(<b>volcano-setup.shortcut</b>)가 내려받아집니다.</li>
+          <li>두 번 눌러 <b>추가</b>하고, 단축어 앱에서 <b>두 번</b> 누르면
+              <b>터미널이 저절로 열리며</b> 나머지가 전부 진행됩니다.</li>
         </ol>
+        <p class="귀띔">터미널을 직접 찾을 필요도, 타이핑도 없습니다.
+        처음 한 번 <b>[허용]</b> 만 눌러 주시면 됩니다.</p>
       </div>
+
+      <details>
+        <summary>단축어가 안 되면 — 한 줄 붙여넣기</summary>
+        <p class="설명" style="font-size:16px;margin:12px 0">
+          아래를 복사해 터미널에 붙여넣으셔도 됩니다.
+          <b>⌘ + 스페이스</b> → <b>terminal</b> → 엔터 → <b>⌘V</b> → 엔터.</p>
+        <div class="명령칸">
+          <code class="명령" id="맥명령">준비 중…</code>
+          <button class="복사" id="복사단추" type="button">복사</button>
+        </div>
+      </details>
     </div>
 
     <p class="바꾸기">잘못 잡혔나요? <a id="바꾸기">다른 쪽 보기</a></p>
@@ -242,9 +229,8 @@ document.getElementById("받기단추").addEventListener("click", function(){
   document.getElementById("받기전").hidden = true;
   document.getElementById("받은뒤").hidden = false;
 });
-// 큰 단추도 복사 단추다 — 누르면 복사하고 다음 할 일을 편다.
-document.getElementById("맥복사단추").addEventListener("click", function(){
-  베끼기(맥한줄);
+// 맥: 단축어를 받으면(큰 단추) 다음 할 일을 편다.
+document.getElementById("맥받기단추").addEventListener("click", function(){
   document.getElementById("맥받기전").hidden = true;
   document.getElementById("맥받은뒤").hidden = false;
 });
